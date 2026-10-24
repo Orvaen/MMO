@@ -101,6 +101,16 @@ public final class Storage {
         write(CONFIG, p, "Configuration du moteur");
     }
 
+    /** Télécharger les sprites des Pokémon qui suivent (vrai par défaut). */
+    public static boolean followerDownload() {
+        return Boolean.parseBoolean(read(CONFIG).getProperty("followers.download", "true"));
+    }
+
+    /** Adresse d'où télécharger ces sprites (une image « overworld.png » par dossier d'espèce). */
+    public static String followerUrl() {
+        return read(CONFIG).getProperty("followers.url", dev.orvaen.mmo.data.FollowerSprites.DEFAULT_URL).trim();
+    }
+
     /** Volume du son en pourcents (touches F7 / F8), mémorisé. 40 % par défaut. */
     public static int volume() {
         try {

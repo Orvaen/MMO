@@ -53,6 +53,7 @@ public final class SelfTest {
         System.setProperty("java.awt.headless", "true");
         Path home = Files.createTempDirectory("orvaen-mmo-test");
         System.setProperty("orvaen.home", home.toString());
+        Files.writeString(home.resolve("config.properties"), "followers.download=false\n");   // pas d'Internet dans les tests
 
         test("LZ77 : aller-retour sur données aléatoires et répétitives", SelfTest::lz77RoundTrip);
         test("LZ77 : copie chevauchante (run d'un octet)", SelfTest::lz77Overlap);
@@ -1025,7 +1026,7 @@ public final class SelfTest {
         check(team.get(0).exp > team.get(0).expForLevel(60), "expérience gagnée et sauvegardée");
     }
 
-    private static void follower() {
+    private static void follower() throws Exception {
         Game g = freshGame();
         g.save.party.add(new int[]{1, 10});
         g.push(new OverworldScene(g));
@@ -1049,9 +1050,31 @@ public final class SelfTest {
         check(f != null, "il est visible derrière le joueur");
         eq(w.playerX() - 1, f[0], "une case derrière (x)");
         eq(w.playerY(), f[1], "même ligne (y)");
+        // Vrai sprite qui marche : une planche 6 x 32x32 déposée dans le cache (dessin de test, couleurs repères)
+        var sheet = new java.awt.image.BufferedImage(192, 32, java.awt.image.BufferedImage.TYPE_BYTE_INDEXED,
+                new java.awt.image.IndexColorModel(8, 4, new byte[]{0, (byte) 255, 0, 0}, new byte[]{0, 0, (byte) 255, 0},
+                        new byte[]{0, 0, 0, (byte) 255}));
+        for (int fr = 0; fr < 6; fr++) for (int y = 8; y < 32; y++) for (int x = 8; x < 24; x++) {
+            sheet.getRaster().setSample(fr * 32 + x, y, 0, fr < 2 ? 1 : fr < 4 ? 2 : 3);
+        }
+        var cut = dev.orvaen.mmo.data.FollowerSprites.cut(sheet);
+        check(cut != null && cut.length == 8, "planche découpée en 8 images (4 directions)");
+        eq(0, cut[0].getRGB(0, 0) >>> 24, "couleur 0 transparente");
+        eq(0xFFFF0000, cut[0].getRGB(16, 20), "bas : rouge");
+        eq(0xFF0000FF, cut[6].getRGB(16, 20), "droite = gauche retournée");
+        String folder = dev.orvaen.mmo.data.FollowerSprites.folder(g.data.species.nationalNumber(1));
+        eq("bulbasaur", folder, "dossier de l'espèce n° 1");
+        Path cache = Storage.DIR.resolve("followers");
+        Files.createDirectories(cache);
+        javax.imageio.ImageIO.write(sheet, "png", cache.resolve(folder + ".png").toFile());
+        for (int i = 0; i < 100 && !w.followerUsesWalkingSprite(); i++) {
+            g.simulateFrame();
+            Thread.sleep(5);
+        }
+        check(w.followerUsesWalkingSprite(), "le vrai sprite (du cache) remplace l'icône");
         BufferedImage frame = g.renderWindow(960, 640);
         boolean seen = false;
-        int target = GbaGfx.bgr555ToArgb(SyntheticRom.ICON_COLOR);
+        int target = 0xFF0000FF;                                       // il va vers la droite
         for (int y = 0; y < frame.getHeight() && !seen; y += 2) for (int x = 0; x < frame.getWidth() && !seen; x += 2) seen = frame.getRGB(x, y) == target;
         check(seen, "dessiné à l'écran");
     }

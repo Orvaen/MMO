@@ -143,7 +143,12 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   partages de clavier) et les enveloppes sont lus dans ta ROM. Musique de chaque carte, écran titre, accueil du
   Professeur, combats, capture, fanfares et effets des scripts (playbgm, playse, playfanfare…), portes et
   escaliers. **F9** coupe / remet le son
-- **Pokémon qui suit** : le premier Pokémon en forme de l'équipe marche derrière toi (icône animée de la ROM)
+- **Pokémon qui suit** : le premier Pokémon en forme de l'équipe marche derrière toi, avec un vrai sprite qui
+  marche dans les 4 directions. La GBA n'en a pas : ces sprites, faits par la communauté du projet de fans
+  [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion), sont **téléchargés au premier
+  besoin** sur ton ordinateur (une image par espèce, gardée dans `~/.orvaen-mmo/followers/`) ; ils ne sont pas
+  dans ce dépôt. Sans Internet, l'icône animée de ta ROM sert à la place. Pour désactiver :
+  `followers.download=false` dans `config.properties` (`followers.url` change la source)
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement ; l'herbe haute
   s'agite sous les pas (joueur et PNJ), avec l'animation de la ROM
 - **Combat** (règles de la 3e génération, données de ta ROM) :

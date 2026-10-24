@@ -31,6 +31,7 @@ public final class GameData {
     private dev.orvaen.mmo.world.FieldEffects fieldEffects;
     private dev.orvaen.mmo.battle.MoveAnimations moveAnimations;
     private PokemonIcons icons;
+    private FollowerSprites followerSprites;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -76,6 +77,12 @@ public final class GameData {
     public PokemonIcons icons() {
         if (icons == null) icons = new PokemonIcons(rom);
         return icons;
+    }
+
+    /** Vrais sprites des Pokémon qui suivent (téléchargés une fois chez le joueur). */
+    public FollowerSprites followerSprites() {
+        if (followerSprites == null) followerSprites = FollowerSprites.fromConfig();
+        return followerSprites;
     }
 
     /** Effets de terrain du monde (herbe haute qui bouge…). */

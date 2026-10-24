@@ -1,5 +1,6 @@
 package dev.orvaen.mmo.scenes;
 
+import dev.orvaen.mmo.data.FollowerSprites;
 import dev.orvaen.mmo.data.PokemonIcons;
 import dev.orvaen.mmo.world.MapRenderer;
 
@@ -12,14 +13,18 @@ import java.awt.image.BufferedImage;
  * <p>
  * À chaque pas du joueur, le Pokémon part vers la case que le joueur quitte, à la même vitesse.
  * En arrivant sur une carte, il sort tout de suite à côté du joueur (derrière lui si possible).
- * Il est dessiné avec son icône de la ROM : une image au repos, et un petit saut à chaque pas.
+ * Il est dessiné avec un vrai sprite qui marche dans les 4 directions ({@link FollowerSprites}, téléchargé
+ * une fois) ; en attendant, ou sans Internet, avec son icône de la ROM.
  */
 final class FollowerPokemon {
 
     private static final int T = MapRenderer.TILE;
 
     private final PokemonIcons icons;
+    private final FollowerSprites sprites;
+    private final java.util.function.IntUnaryOperator nationalNumber;
     private int species;                // 0 : personne ne suit
+    private int direction = FollowerSprites.DOWN;
     private int x, y;                   // case visée
     private int fromX, fromY;           // case de départ du déplacement en cours
     private double progress = 1;        // 0 → 1 pendant un déplacement
@@ -28,8 +33,10 @@ final class FollowerPokemon {
     private int seenSteps;
     private int idle;                   // frames sans bouger (petite respiration)
 
-    FollowerPokemon(PokemonIcons icons) {
+    FollowerPokemon(PokemonIcons icons, FollowerSprites sprites, java.util.function.IntUnaryOperator nationalNumber) {
         this.icons = icons;
+        this.sprites = sprites;
+        this.nationalNumber = nationalNumber;
     }
 
     void setSpecies(int species) {
@@ -95,6 +102,8 @@ final class FollowerPokemon {
             return;
         }
         if (x != fromX) faceRight = x > fromX;
+        direction = x > fromX ? FollowerSprites.RIGHT : x < fromX ? FollowerSprites.LEFT
+                : y < fromY ? FollowerSprites.UP : FollowerSprites.DOWN;
         progress = 0;
         rate = perFrame;
     }
@@ -120,6 +129,11 @@ final class FollowerPokemon {
 
     void draw(Graphics2D g, OverworldPlayer player, double originX, double originY, int zoom, double interpolation) {
         if (!visible(player)) return;
+        BufferedImage[] walk = sprites == null ? null : sprites.frames(nationalNumber.applyAsInt(species));
+        if (walk != null) {
+            drawWalking(g, walk, originX, originY, zoom, interpolation);
+            return;
+        }
         BufferedImage[] frames = icons.frames(species);
         if (frames == null) return;
         // un petit saut pendant la 1re moitié de chaque pas ; au repos, une « respiration » lente
@@ -143,6 +157,25 @@ final class FollowerPokemon {
         if (faceRight) q.drawImage(img, 32, 0, -32, 32, null);
         else q.drawImage(img, 0, 0, null);
         q.dispose();
+    }
+
+    /** Vrai sprite : pas alterné pendant la marche ; au repos il « piétine » doucement, comme dans HG/SS. */
+    private void drawWalking(Graphics2D g, BufferedImage[] walk, double originX, double originY, int zoom, double interp) {
+        int step = progress < 1 ? (progress < 0.5 ? 1 : 0) : (idle / 32) % 2;
+        BufferedImage img = FollowerSprites.pick(walk, direction, step);
+        int size = img.getWidth();
+        double wx = exactX(interp) + T / 2.0 - size / 2.0, wy = exactY(interp) + T - size;
+        Graphics2D q = (Graphics2D) g.create();
+        q.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        q.translate(Math.round(originX + wx * zoom), Math.round(originY + wy * zoom));
+        q.scale(zoom, zoom);
+        q.drawImage(img, 0, 0, null);
+        q.dispose();
+    }
+
+    /** Pour les tests : le vrai sprite est-il affiché (sinon l'icône) ? */
+    boolean usesWalkingSprite() {
+        return sprites != null && species > 0 && sprites.frames(nationalNumber.applyAsInt(species)) != null;
     }
 
     int x() {

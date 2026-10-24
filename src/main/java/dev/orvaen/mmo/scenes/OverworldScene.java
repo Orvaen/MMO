@@ -98,7 +98,7 @@ public final class OverworldScene implements Scene {
         this.view = new MapView(game.data);
         this.host = new OverworldScriptHost(this);
         this.grass = new GrassEffects(game.data.fieldEffects());
-        this.follower = new FollowerPokemon(game.data.icons());
+        this.follower = new FollowerPokemon(game.data.icons(), game.data.followerSprites(), game.data.species::nationalNumber);
         refreshAvatar();
         startNewGameIfNeeded();
         placePlayerAtStart();
@@ -704,6 +704,11 @@ public final class OverworldScene implements Scene {
     /** Case du Pokémon qui suit le joueur ({x, y}), ou null s'il n'est pas visible — pour les tests. */
     public int[] followerTile() {
         return follower.visible(player) ? new int[]{follower.x(), follower.y()} : null;
+    }
+
+    /** Le Pokémon qui suit utilise-t-il son vrai sprite (sinon l'icône de la ROM) — pour les tests. */
+    public boolean followerUsesWalkingSprite() {
+        return follower.usesWalkingSprite();
     }
 
     /** Nombre d'herbes hautes en train de s'agiter — pour les tests. */
