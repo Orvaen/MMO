@@ -22,6 +22,7 @@ public final class SpeciesRepository {
     private final int frontSprites;
     private final int palettes;
     private final Map<Integer, BufferedImage> spriteCache = new ConcurrentHashMap<>();
+    private final Map<Integer, BufferedImage> backCache = new ConcurrentHashMap<>();
 
     public SpeciesRepository(Rom rom) {
         this.rom = rom;
@@ -103,9 +104,19 @@ public final class SpeciesRepository {
         return spriteCache.computeIfAbsent(id, this::extractFrontSprite);
     }
 
+    /** Sprite de dos 64x64 (le Pokémon du joueur en combat), extrait à la demande. */
+    public BufferedImage backSprite(int id) {
+        return backCache.computeIfAbsent(id, i -> extractSprite(rom.pointer(GameProfile.PTR_BACK_SPRITES), i));
+    }
+
     private BufferedImage extractFrontSprite(int id) {
+        return extractSprite(frontSprites, id);
+    }
+
+    private BufferedImage extractSprite(int table, int id) {
         try {
-            int gfx = rom.requirePointer(frontSprites + id * 8, "le sprite #" + id);
+            if (table < 0) throw new RomException("table de sprites absente");
+            int gfx = rom.requirePointer(table + id * 8, "le sprite #" + id);
             int pal = rom.requirePointer(palettes + id * 8, "la palette #" + id);
             byte[] tiles = Lz77.decompress(rom, gfx);
             int[] colors = GbaGfx.palettesFromBytes(Lz77.decompress(rom, pal));

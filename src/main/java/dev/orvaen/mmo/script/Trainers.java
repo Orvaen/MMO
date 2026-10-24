@@ -13,6 +13,10 @@ import java.util.List;
  * 0x01 u8 classe · 0x03 u8 portrait · 0x04 nom (12 octets) · 0x20 u8 taille de l'équipe · 0x24 ptr équipe
  * </pre>
  * Chaque Pokémon de l'équipe commence par : u16 IV, u8 niveau, u8 —, u16 espèce (8 ou 16 octets).
+ * Selon les options : u16 objet tenu (bit 1), puis 4 attaques u16 (bit 0).
+ * <p>
+ * {@link Trainer#party()} donne pour chaque Pokémon : {@code {espèce, niveau, IV (0-255), att1, att2, att3, att4}}
+ * (attaques à 0 : celles qu'il connaît naturellement à ce niveau).
  */
 public final class Trainers {
 
@@ -45,7 +49,12 @@ public final class Trainers {
         List<int[]> mons = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             int m = party + i * stride;
-            mons.add(new int[]{rom.u16(m + 4), rom.u8(m + 2)});
+            int[] mon = {rom.u16(m + 4), rom.u8(m + 2), rom.u16(m) & 0xFF, 0, 0, 0, 0};
+            if ((flags & 1) != 0) {
+                int movesAt = m + ((flags & 2) != 0 ? 8 : 6);
+                for (int k = 0; k < 4; k++) mon[3 + k] = rom.u16(movesAt + k * 2);
+            }
+            mons.add(mon);
         }
         return new Trainer(id, TextCodec.read(rom, o + 4, 12), rom.u8(o + 3), mons);
     }

@@ -26,6 +26,9 @@ public final class GameData {
     public final dev.orvaen.mmo.audio.Songs songs;
     private Trainers trainers;
     private TitleGraphics title;
+    private dev.orvaen.mmo.battle.BattleData battle;
+    private dev.orvaen.mmo.battle.BattleGraphics battleGraphics;
+    private dev.orvaen.mmo.world.FieldEffects fieldEffects;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -43,13 +46,31 @@ public final class GameData {
         this.player = new PlayerGraphics(rom);
     }
 
-    /** Dresseurs de la ROM (cherchés au premier combat). */
     /** Images de l'écran titre (cherchées dans la ROM au premier appel). */
     public TitleGraphics titleGraphics() {
         if (title == null) title = new TitleGraphics(rom);
         return title;
     }
 
+    /** Règles du combat : attaques, apprentissages, types, expérience (lues au premier appel). */
+    public dev.orvaen.mmo.battle.BattleData battle() {
+        if (battle == null) battle = new dev.orvaen.mmo.battle.BattleData(rom);
+        return battle;
+    }
+
+    /** Images du combat : fonds, boîte de texte, Poké Ball (lues au premier combat). */
+    public dev.orvaen.mmo.battle.BattleGraphics battleGraphics() {
+        if (battleGraphics == null) battleGraphics = new dev.orvaen.mmo.battle.BattleGraphics(rom);
+        return battleGraphics;
+    }
+
+    /** Effets de terrain du monde (herbe haute qui bouge…). */
+    public dev.orvaen.mmo.world.FieldEffects fieldEffects() {
+        if (fieldEffects == null) fieldEffects = new dev.orvaen.mmo.world.FieldEffects(rom);
+        return fieldEffects;
+    }
+
+    /** Dresseurs de la ROM (cherchés au premier combat). */
     public Trainers trainers() {
         if (trainers == null) trainers = new Trainers(rom, species.count());
         return trainers;

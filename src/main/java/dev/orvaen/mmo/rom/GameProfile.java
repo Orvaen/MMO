@@ -28,6 +28,11 @@ public enum GameProfile {
     public static final int PTR_SPECIES_INFO = 0x1BC;
     public static final int PTR_FRONT_SPRITES = 0x128;
     public static final int PTR_SPECIES_PALETTES = 0x130;
+    public static final int PTR_BACK_SPRITES = 0x12C;     // sprites de dos (combat)
+    public static final int PTR_MOVE_NAMES = 0x148;       // noms des attaques (13 octets chacun)
+    public static final int PTR_MOVES = 0x1CC;            // caractéristiques des attaques (12 octets chacune)
+    public static final int PTR_BALL_SPRITES = 0x1D0;     // images des Poké Balls
+    public static final int PTR_BALL_PALETTES = 0x1D4;
 
     // Signatures de code précédant les pointeurs vers les tables de cartes et de rencontres
     public static final String SIG_MAP_GROUPS = "80180068890B091808687047";

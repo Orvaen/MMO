@@ -142,6 +142,8 @@ public final class Storage {
         /** Carte de dresseur : n° ID (tiré au hasard à la création), argent, temps de jeu, début de l'aventure. */
         public int trainerId = -1;
         public int money = 3000;
+        /** Poké Balls dans le sac (5 offertes en début de partie, pour pouvoir capturer tout de suite). */
+        public int pokeBalls = 5;
         public long playFrames;
         public String started = "";
         /** Progression de l'histoire : drapeaux et variables des scripts de la ROM. */
@@ -150,6 +152,10 @@ public final class Storage {
         /** Drapeaux de début de partie posés (script « tout réinitialiser » de la ROM). */
         public boolean eventsReady;
         /** Équipe : espèce et niveau (le système de combat complet viendra ensuite). */
+        /**
+         * L'équipe : un tableau de nombres par Pokémon ({@code espèce, niveau, …}, voir battle.Pokemon).
+         * Utiliser {@code battle.Party} pour la lire et l'écrire facilement.
+         */
         public final java.util.List<int[]> party = new java.util.ArrayList<>();
         /** Surnoms de l'équipe (vide : nom de l'espèce), dans le même ordre que {@link #party}. */
         public final java.util.List<String> partyNames = new java.util.ArrayList<>();
@@ -176,6 +182,7 @@ public final class Storage {
             s.look = PlayerLook.decode(p.getProperty("player.look"));
             s.trainerId = intOf(p, "player.id", -1);
             s.money = intOf(p, "player.money", 3000);
+            s.pokeBalls = intOf(p, "bag.pokeballs", 5);
             try {
                 s.playFrames = Long.parseLong(p.getProperty("player.playtime", "0").trim()) * 60;
             } catch (NumberFormatException e) {
@@ -201,9 +208,14 @@ public final class Storage {
             s.rivalName = p.getProperty("rival.name", "").trim();
             for (String n : p.getProperty("party.names", "").split("\\|", -1)) s.partyNames.add(n);
             for (String m : p.getProperty("party", "").split(",")) {
+                // un Pokémon = des nombres séparés par « : » (voir battle.Pokemon.toSave)
                 String[] parts = m.split(":");
                 try {
-                    if (parts.length == 2) s.party.add(new int[]{Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim())});
+                    if (parts.length >= 2) {
+                        int[] v = new int[parts.length];
+                        for (int i = 0; i < parts.length; i++) v[i] = Integer.parseInt(parts[i].trim());
+                        s.party.add(v);
+                    }
                 } catch (NumberFormatException ignored) {
                     // entrée corrompue
                 }
@@ -235,6 +247,7 @@ public final class Storage {
             look = null;
             trainerId = -1;
             money = 3000;
+            pokeBalls = 5;
             playFrames = 0;
             started = "";
             flags.clear();
@@ -270,6 +283,7 @@ public final class Storage {
             if (started.isEmpty()) started = java.time.LocalDate.now().toString();
             p.setProperty("player.id", String.valueOf(trainerId));
             p.setProperty("player.money", String.valueOf(money));
+            p.setProperty("bag.pokeballs", String.valueOf(pokeBalls));
             p.setProperty("player.playtime", String.valueOf(playFrames / 60));
             p.setProperty("player.started", started);
             StringBuilder f = new StringBuilder();
@@ -289,7 +303,7 @@ public final class Storage {
             StringBuilder pt = new StringBuilder();
             for (int[] m : party) {
                 if (!pt.isEmpty()) pt.append(',');
-                pt.append(m[0]).append(':').append(m[1]);
+                for (int i = 0; i < m.length; i++) pt.append(i == 0 ? "" : ":").append(m[i]);
             }
             p.setProperty("party", pt.toString());
             while (partyNames.size() < party.size()) partyNames.add("");

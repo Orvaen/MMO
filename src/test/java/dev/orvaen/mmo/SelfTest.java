@@ -80,6 +80,12 @@ public final class SelfTest {
         test("Histoire : un personnage réapparaît quand son drapeau est effacé", SelfTest::storyRespawn);
         test("Pokédex : fenêtre, recherche, sélection, fermeture", SelfTest::pokedexWindow);
         test("Son : table des morceaux, lecture d'une note, fin du morceau", SelfTest::audio);
+        test("Combat : attaques, apprentissages, types, expérience lus dans la ROM", SelfTest::battleData);
+        test("Combat : fonds, boîte de texte, Poké Ball, sprites de dos", SelfTest::battleGraphics);
+        test("Herbe haute : images de l'effet retrouvées dans la ROM", SelfTest::tallGrassGraphics);
+        test("Pokémon : stats Gen 3, sauvegarde, ancien format complété", SelfTest::pokemonModel);
+        test("Combat : dégâts, efficacité, statut, K.O., expérience, nouvelle attaque", SelfTest::battleEngine);
+        test("Combat : capture, fuite, dresseur et remplacement après K.O.", SelfTest::battleActions);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
         test("Carte de dresseur : n° ID, temps de jeu, ouverture depuis le menu", SelfTest::trainerCard);
         test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
@@ -660,6 +666,198 @@ public final class SelfTest {
         double e = 0;
         for (float f : buf) e += f * f;
         return Math.sqrt(e / buf.length);
+    }
+
+    private static void battleData() {
+        var b = data().battle();
+        var tackle = b.move(SyntheticRom.MOVE_TACKLE);
+        eq("CHARGE", tackle.name(), "nom de l'attaque");
+        eq(35, tackle.power(), "puissance");
+        eq(100, tackle.accuracy(), "précision");
+        check(tackle.physical(), "Normal = physique (3e génération)");
+        eq(1, b.move(SyntheticRom.MOVE_QUICK).priority(), "Vive-Attaque : priorité +1");
+        check(b.move(SyntheticRom.MOVE_GROWL).status(), "Rugissement : attaque de statut");
+        check(!b.move(SyntheticRom.MOVE_EMBER).physical(), "Feu = spécial");
+        int[] at4 = b.movesAtLevel(1, 4), at9 = b.movesAtLevel(1, 9);
+        eq(SyntheticRom.MOVE_TACKLE, at4[0], "N.4 : Charge");
+        eq(SyntheticRom.MOVE_GROWL, at4[1], "N.4 : Rugissement");
+        eq(0, at4[2], "N.4 : pas encore Flammèche");
+        eq(SyntheticRom.MOVE_QUICK, at9[3], "N.9 : Vive-Attaque");
+        eq(java.util.List.of(SyntheticRom.MOVE_EMBER), b.movesLearnedAt(1, 5), "apprise au N.5");
+        eq(5, b.effectiveness(0, 5), "Normal → Roche : ×0,5");
+        eq(20, b.effectiveness(10, 12), "Feu → Plante : ×2");
+        eq(0, b.effectiveness(0, 7), "Normal → Spectre : ×0 (après le séparateur)");
+        eq(10, b.effectiveness(10, 10), "par défaut : ×1");
+        eq(125L, b.experienceFor(0, 5), "courbe moyenne : 5³");
+        eq(100L, b.experienceFor(4, 5), "courbe rapide : 0,8 × 5³");
+    }
+
+    private static void battleGraphics() {
+        GameData d = data();
+        var g = d.battleGraphics();
+        var field = g.terrain(dev.orvaen.mmo.battle.BattleGraphics.GRASS);
+        check(field != null, "fond d'herbe trouvé");
+        eq(240, field.getWidth(), "largeur");
+        eq(112, field.getHeight(), "hauteur (au-dessus de la boîte)");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.TERRAIN_COLOR), field.getRGB(10, 10), "palette du terrain (n° 2)");
+        var msg = g.box(dev.orvaen.mmo.battle.BattleGraphics.Box.MESSAGE);
+        check(msg != null, "boîte de texte trouvée");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.TEXTBOX_COLOR), msg.getRGB(5, 5), "boîte de message");
+        var act = g.box(dev.orvaen.mmo.battle.BattleGraphics.Box.ACTIONS);
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.MENU_COLOR), act.getRGB(200, 20), "menu d'action (palette 1) à droite");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.TEXTBOX_COLOR), act.getRGB(20, 20), "message à gauche");
+        check(g.ball != null && g.ball.length == 3, "Poké Ball : 3 images");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.RED), g.ball[0].getRGB(8, 8), "couleur de la ball");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.BLUE), d.species.backSprite(1).getRGB(0, 0), "sprite de dos");
+    }
+
+    private static void pokemonModel() {
+        GameData d = data();
+        var p = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 10, new java.util.Random(1));
+        // TESTMON : PV de base 45 → (90 + IV) × 10 / 100 + 20
+        eq((90 + p.ivs[0]) * 10 / 100 + 20, p.maxHp(), "PV max (formule Gen 3)");
+        eq(p.maxHp(), p.hp, "PV pleins");
+        eq(SyntheticRom.MOVE_TACKLE, p.moves[0], "attaques du niveau 10");
+        eq(SyntheticRom.MOVE_QUICK, p.moves[3], "dernière attaque apprise (N.9)");
+        eq(30, p.pp[3], "PP pleins");
+        p.hp = 7;
+        p.nickname = "Flammy";
+        var back = dev.orvaen.mmo.battle.Pokemon.fromSave(d, p.toSave(), p.nickname);
+        eq(7, back.hp, "PV relus");
+        eq(p.nature, back.nature, "nature relue");
+        eq(java.util.Arrays.toString(p.ivs), java.util.Arrays.toString(back.ivs), "IV relus");
+        eq("Flammy", back.name(), "surnom");
+        var legacy = dev.orvaen.mmo.battle.Pokemon.fromSave(d, new int[]{1, 5}, "");
+        eq(5, legacy.level, "ancien format : niveau");
+        eq(legacy.maxHp(), legacy.hp, "ancien format : PV pleins");
+        eq(SyntheticRom.MOVE_EMBER, legacy.moves[2], "ancien format : attaques du niveau");
+        Game g = freshGame();
+        g.save.party.add(new int[]{1, 5});
+        var team = dev.orvaen.mmo.battle.Party.load(g.data, g.save);
+        team.get(0).hp = 1;
+        dev.orvaen.mmo.battle.Party.store(g.save, team);
+        g.save.store();
+        var reloaded = Storage.Save.load(g.data.rom.gameCode());
+        eq(1, dev.orvaen.mmo.battle.Party.load(g.data, reloaded).get(0).hp, "équipe sauvegardée sur le disque");
+        dev.orvaen.mmo.battle.Party.healAll(g.data, reloaded);
+        var healed = dev.orvaen.mmo.battle.Party.load(g.data, reloaded).get(0);
+        eq(healed.maxHp(), healed.hp, "soin de l'équipe");
+    }
+
+    private static dev.orvaen.mmo.battle.Battle wildBattle(GameData d, dev.orvaen.mmo.battle.Pokemon mine,
+                                                         dev.orvaen.mmo.battle.Pokemon foe, long seed) {
+        return new dev.orvaen.mmo.battle.Battle(d, new ArrayList<>(List.of(mine)), new ArrayList<>(List.of(foe)),
+                null, "RAYAN", new java.util.Random(seed));
+    }
+
+    private static String texts(List<dev.orvaen.mmo.battle.BattleEvent> events) {
+        StringBuilder sb = new StringBuilder();
+        for (var e : events) if (e instanceof dev.orvaen.mmo.battle.BattleEvent.Message m) sb.append(m.text()).append(" | ");
+        return sb.toString();
+    }
+
+    private static void battleEngine() {
+        GameData d = data();
+        var rng = new java.util.Random(3);
+        var mine = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 4, rng);       // CHARGE, RUGISSEMENT
+        mine.exp = mine.expForLevel(5) - 1;                                 // à 1 point du niveau 5
+        var foe = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 3, rng);
+        var b = wildBattle(d, mine, foe, 7);
+        String intro = texts(b.start());
+        check(intro.contains("Un TESTMON sauvage apparaît !"), "message d'entrée : " + intro);
+        check(intro.contains("En avant ! TESTMON !"), "le joueur envoie son Pokémon");
+
+        // Rugissement : l'Attaque adverse baisse
+        var growl = b.useMove(1);
+        check(growl.stream().anyMatch(e -> e instanceof dev.orvaen.mmo.battle.BattleEvent.StatChange sc
+                && sc.side() == dev.orvaen.mmo.battle.Battle.FOE && !sc.up()), "Rugissement : stat adverse en baisse");
+        check(texts(growl).contains("L'ATTAQUE de TESTMON sauvage baisse !"), "message de baisse : " + texts(growl));
+        eq(39, mine.pp[1], "un PP consommé");
+
+        // Charge jusqu'au K.O. : dégâts, puis expérience et niveau 5 (Flammèche apprise)
+        String all = "";
+        for (int turn = 0; turn < 40 && !b.over(); turn++) {
+            if (mine.fainted()) break;
+            var ev = b.useMove(0);
+            for (var e : ev) {
+                if (e instanceof dev.orvaen.mmo.battle.BattleEvent.Damage dm && dm.side() == dev.orvaen.mmo.battle.Battle.FOE) {
+                    check(dm.hpAfter() >= 0, "PV jamais négatifs");
+                }
+            }
+            all += texts(ev);
+        }
+        eq(dev.orvaen.mmo.battle.Battle.Outcome.WON, b.outcome(), "combat gagné : " + all);
+        check(foe.fainted(), "adversaire K.O.");
+        check(all.contains("TESTMON sauvage est K.O. !"), "message de K.O.");
+        check(all.contains("points EXP."), "expérience gagnée");
+        eq(5, mine.level, "niveau 5 atteint");
+        check(all.contains("TESTMON apprend FLAMMECHE !"), "nouvelle attaque : " + all);
+        eq(SyntheticRom.MOVE_EMBER, mine.moves[2], "Flammèche dans les attaques");
+
+        // Feu → Plante (TESTMON est Feu/Plante) : super efficace
+        var attacker = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 20, new java.util.Random(5));
+        var target = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 20, new java.util.Random(6));
+        var b2 = wildBattle(d, attacker, target, 11);
+        b2.start();
+        String ember = texts(b2.useMove(2));
+        check(ember.contains("FLAMMECHE") && (ember.contains("C'est super efficace !") || ember.contains("rate son attaque")),
+                "efficacité annoncée : " + ember);
+    }
+
+    private static void battleActions() {
+        GameData d = data();
+        // Capture : TESTMON (taux 190) à 1 PV, plusieurs essais
+        boolean caught = false;
+        for (int seed = 0; seed < 20 && !caught; seed++) {
+            var foe = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 3, new java.util.Random(seed));
+            foe.hp = 1;
+            var b = wildBattle(d, dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 30, new java.util.Random(seed)), foe, seed);
+            b.start();
+            var ev = b.throwBall();
+            check(ev.stream().anyMatch(e -> e instanceof dev.orvaen.mmo.battle.BattleEvent.BallThrow), "lancer animé");
+            caught = b.outcome() == dev.orvaen.mmo.battle.Battle.Outcome.CAUGHT;
+        }
+        check(caught, "capture d'un Pokémon affaibli");
+
+        // Fuite : bien plus rapide → réussie
+        var fast = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 50, new java.util.Random(1));
+        var slow = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 2, new java.util.Random(2));
+        var run = wildBattle(d, fast, slow, 1);
+        run.start();
+        check(texts(run.run()).contains("Vous prenez la fuite !"), "fuite réussie");
+        eq(dev.orvaen.mmo.battle.Battle.Outcome.FLED, run.outcome(), "issue : fuite");
+
+        // Dresseur : pas de fuite, pas de capture ; remplacement après K.O.
+        var weak = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 2, new java.util.Random(3));
+        weak.hp = 1;
+        var backup = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 80, new java.util.Random(4));
+        var strong = dev.orvaen.mmo.battle.Pokemon.trainer(d, 1, 30, 255, null);
+        var second = dev.orvaen.mmo.battle.Pokemon.trainer(d, 2, 3, 0, null);
+        var tb = new dev.orvaen.mmo.battle.Battle(d, new ArrayList<>(List.of(weak, backup)),
+                new ArrayList<>(List.of(strong, second)), "BLUE", "RAYAN", new java.util.Random(9));
+        String start = texts(tb.start());
+        check(start.contains("BLUE veut se battre !") && start.contains("BLUE envoie TESTMON !"), "intro dresseur : " + start);
+        check(texts(tb.run()).contains("On ne fuit pas"), "pas de fuite contre un dresseur");
+        for (int i = 0; i < 10 && !tb.mustChooseReplacement() && !tb.over(); i++) tb.useMove(0);
+        check(tb.mustChooseReplacement(), "K.O. du joueur : il doit choisir un autre Pokémon");
+        check(!tb.canSwitchTo(0), "pas un Pokémon K.O.");
+        var out = tb.replaceFainted(1);
+        check(texts(out).contains("En avant ! TESTMON !"), "remplaçant envoyé");
+        eq(1, tb.activeIndex(dev.orvaen.mmo.battle.Battle.PLAYER), "n° 2 au combat");
+        String rest = "";
+        for (int i = 0; i < 60 && !tb.over(); i++) rest += texts(tb.useMove(0));
+        eq(dev.orvaen.mmo.battle.Battle.Outcome.WON, tb.outcome(), "dresseur battu : " + rest);
+        check(rest.contains("BLUE envoie") && rest.contains("Vous avez battu BLUE !"), "Pokémon suivant puis victoire");
+        check(tb.prizeMoney() > 0, "argent gagné");
+    }
+
+    private static void tallGrassGraphics() {
+        var grass = data().fieldEffects().tallGrass;
+        check(grass != null && grass.length == 5, "5 images d'herbe");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.GRASS_COLOR), grass[0].getRGB(4, 4), "image 0 : couleur 1 de la palette 0x1005");
+        eq(1, dev.orvaen.mmo.world.FieldEffects.tallGrassFrame(0), "l'animation commence à l'image 1");
+        eq(4, dev.orvaen.mmo.world.FieldEffects.tallGrassFrame(35), "puis 2, 3, 4");
+        eq(0, dev.orvaen.mmo.world.FieldEffects.tallGrassFrame(45), "et revient au repos");
     }
 
     private static void audio() {

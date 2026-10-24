@@ -12,7 +12,7 @@ import java.util.HexFormat;
  */
 public final class SyntheticRom {
 
-    public static final int SIZE = 0x60000;
+    public static final int SIZE = 0x80000;
 
     // Couleurs (BGR555) choisies pour être faciles à reconnaître au rendu
     public static final int GREEN = 0x03E0;   // tuile 1 · palette 0 · couleur 1
@@ -48,6 +48,7 @@ public final class SyntheticRom {
         buildResetScript();
         buildSongs();
         if (titleScreen) buildTitleScreen();
+        buildBattle();
         return rom;
     }
 
@@ -312,6 +313,166 @@ public final class SyntheticRom {
         ptr(header + 8, track);
         int table = alloc(SONG_COUNT * 8);
         for (int i = 0; i < SONG_COUNT; i++) ptr(table + i * 8, header);
+    }
+
+    // ------------------------------------------------------------------ combat
+
+    /** Attaques inventées : 1 CHARGE, 2 GRIFFE, 3 RUGISSEMENT (Attaque −1), 4 FLAMMECHE (Feu), 5 VIVE-ATTAQUE (priorité). */
+    public static final int MOVE_TACKLE = 1, MOVE_SCRATCH = 2, MOVE_GROWL = 3, MOVE_EMBER = 4, MOVE_QUICK = 5;
+    /** Couleurs repères du combat (BGR555). */
+    public static final int TERRAIN_COLOR = 0x0360, TEXTBOX_COLOR = 0x5000, MENU_COLOR = 0x7FFF,
+            GRASS_COLOR = 0x0280;
+
+    private void buildBattle() {
+        // Attaques (12 octets) et noms (13 octets), pointés par l'en-tête de la ROM
+        int count = 355;
+        int moves = alloc(count * 12), names = alloc(count * 13);
+        for (int i = 0; i < count * 13; i++) rom[names + i] = (byte) 0xFF;
+        Object[][] list = {
+                {MOVE_TACKLE, "CHARGE", 0, 35, 0, 100, 35, 0, 0},
+                {MOVE_SCRATCH, "GRIFFE", 0, 40, 0, 100, 35, 0, 0},
+                {MOVE_GROWL, "RUGISSEMENT", 18, 0, 0, 100, 40, 0, 0},
+                {MOVE_EMBER, "FLAMMECHE", 4, 40, 10, 100, 25, 10, 0},
+                {MOVE_QUICK, "VIVE-ATTAQUE", 103, 40, 0, 100, 30, 0, 1},
+        };
+        for (Object[] m : list) {
+            int id = (int) m[0], o = moves + id * 12;
+            text(names + id * 13, (String) m[1]);
+            for (int k = 0; k < 6; k++) rom[o + k] = (byte) (int) (Integer) m[2 + k];
+            rom[o + 7] = (byte) (int) (Integer) m[8];
+        }
+        ptr(GameProfile.PTR_MOVES, moves);
+        ptr(GameProfile.PTR_MOVE_NAMES, names);
+
+        // Apprentissages : TESTMON (1) apprend CHARGE et RUGISSEMENT au N.1, FLAMMECHE au N.5,
+        // VIVE-ATTAQUE au N.9 ; les autres espèces : GRIFFE au N.1
+        int ls1 = alloc(10), lsOther = alloc(4);
+        w16(ls1, 1 << 9 | MOVE_TACKLE);
+        w16(ls1 + 2, 1 << 9 | MOVE_GROWL);
+        w16(ls1 + 4, 5 << 9 | MOVE_EMBER);
+        w16(ls1 + 6, 9 << 9 | MOVE_QUICK);
+        w16(ls1 + 8, 0xFFFF);
+        w16(lsOther, 1 << 9 | MOVE_SCRATCH);
+        w16(lsOther + 2, 0xFFFF);
+        int n = GameProfile.SPECIES_COUNT, learn = alloc(n * 4);
+        for (int i = 0; i < n; i++) ptr(learn + i * 4, i == 1 ? ls1 : lsOther);
+
+        // Table des types : commence par Normal → Roche ×0,5 ; Feu → Plante ×2 ; Eau → Feu ×2
+        byte[] types = {0, 5, 5, 0, 8, 5, 10, 12, 20, 11, 10, 20, (byte) 0xFE, (byte) 0xFE, 0, 0, 7, 0, (byte) 0xFF};
+        int t = alloc(types.length);
+        System.arraycopy(types, 0, rom, t, types.length);
+
+        // Courbes d'expérience (6 x 101 niveaux)
+        int exp = alloc(6 * 101 * 4);
+        for (int g = 0; g < 6; g++) {
+            for (int l = 0; l <= 100; l++) w32(exp + (g * 101 + l) * 4, (int) expFormula(g, l));
+        }
+
+        // Sprites de dos : pixel (0,0) couleur 2 (BLUE dans la palette de l'espèce)
+        byte[] back = new byte[2048];
+        back[0] = 0x02;
+        int backData = alloc(back.length + 400);
+        writeLz(backData, back);
+        int backTable = alloc(n * 8);
+        for (int i = 0; i < n; i++) {
+            ptr(backTable + i * 8, backData);
+            w16(backTable + i * 8 + 4, 0x800);
+            w16(backTable + i * 8 + 6, i);
+        }
+        ptr(GameProfile.PTR_BACK_SPRITES, backTable);
+
+        // Fonds de combat : 10 terrains identiques, lignes 0 à 13 = tuile 1 de couleur 1 (palette 2)
+        java.io.ByteArrayOutputStream tb = new java.io.ByteArrayOutputStream();
+        lzBlock(tb, solidTiles(2, 1));
+        int tilesAt = 0;
+        int mapAt = tb.size();
+        byte[] tmap = new byte[0x1000];
+        for (int y = 0; y < 14; y++) for (int x = 0; x < 32; x++) put16(tmap, (y * 32 + x) * 2, 1 | 2 << 12);
+        lzBlock(tb, tmap);
+        int palAt = tb.size();
+        byte[] tpal = new byte[0x60];
+        put16(tpal, 2, TERRAIN_COLOR);
+        lzBlock(tb, tpal);
+        byte[] terrainData = tb.toByteArray();
+        int terrains = alloc(terrainData.length);
+        System.arraycopy(terrainData, 0, rom, terrains, terrainData.length);
+        int table = alloc(10 * 20);
+        for (int i = 0; i < 10; i++) {
+            ptr(table + i * 20, terrains + tilesAt);
+            ptr(table + i * 20 + 4, terrains + mapAt);
+            ptr(table + i * 20 + 8, terrains + tilesAt);
+            ptr(table + i * 20 + 12, terrains + mapAt);
+            ptr(table + i * 20 + 16, terrains + palAt);
+        }
+
+        // Boîte de texte : tuiles (0x2000), palettes (0x40), plan (0x1000), à la suite
+        java.io.ByteArrayOutputStream box = new java.io.ByteArrayOutputStream();
+        lzBlock(box, solidTiles(256, 1));
+        byte[] bpal = new byte[0x40];
+        put16(bpal, 2, TEXTBOX_COLOR);
+        put16(bpal, 32 + 2, MENU_COLOR);
+        lzBlock(box, bpal);
+        byte[] bmap = new byte[0x1000];
+        for (int row : new int[]{14, 15, 16, 17, 18, 19, 34, 35, 36, 37, 38, 39}) {
+            for (int x = 0; x < 32; x++) put16(bmap, (row * 32 + x) * 2, 1 | (row >= 34 && x >= 15 ? 1 << 12 : 0));
+        }
+        for (int row = 54; row < 60; row++) for (int x = 0; x < 32; x++) put16(bmap, (row * 32 + x) * 2, 1 | 1 << 12);
+        lzBlock(box, bmap);
+        put(box.toByteArray());
+
+        // Poké Ball : 3 images 16x16 (couleur 1), et sa palette
+        int ballData = alloc(600);
+        writeLz(ballData, solidTiles(12, 1));
+        byte[] ballPal = new byte[32];
+        put16(ballPal, 2, RED);
+        int ballPalData = alloc(64);
+        writeLz(ballPalData, ballPal);
+        int ballSheets = alloc(8), ballPals = alloc(8);
+        ptr(ballSheets, ballData);
+        w16(ballSheets + 4, 384);
+        w16(ballSheets + 6, 55000);
+        ptr(ballPals, ballPalData);
+        w16(ballPals + 4, 55000);
+        ptr(GameProfile.PTR_BALL_SPRITES, ballSheets);
+        ptr(GameProfile.PTR_BALL_PALETTES, ballPals);
+
+        // Herbe haute : 5 images 16x16 (image n remplie de la couleur n + 1), animation, modèle, palette 0x1005
+        int grassPics = alloc(5 * 128);
+        for (int f = 0; f < 5; f++) for (int i = 0; i < 128; i++) rom[grassPics + f * 128 + i] = (byte) ((f + 1) | (f + 1) << 4);
+        int images = alloc(5 * 8);
+        for (int f = 0; f < 5; f++) {
+            ptr(images + f * 8, grassPics + f * 128);
+            w16(images + f * 8 + 4, 0x80);
+        }
+        int anim = alloc(6 * 4);
+        int[] frames = {1, 2, 3, 4, 0};
+        for (int i = 0; i < 5; i++) w32(anim + i * 4, frames[i] | 10 << 16);
+        w32(anim + 20, 0xFFFFFFFD);
+        int animTable = alloc(4);
+        ptr(animTable, anim);
+        int template = alloc(24);
+        w16(template, 0xFFFF);
+        w16(template + 2, 0x1005);
+        ptr(template + 4, anim);
+        ptr(template + 8, animTable);
+        ptr(template + 12, images);
+        ptr(template + 16, anim);
+        ptr(template + 20, anim);
+        int grassPal = alloc(32);
+        w16(grassPal + 2, GRASS_COLOR);
+        int palStruct = alloc(8);
+        ptr(palStruct, grassPal);
+        w16(palStruct + 4, 0x1005);
+    }
+
+    static long expFormula(int g, int n) {
+        long n3 = (long) n * n * n;
+        return switch (g) {
+            case 3 -> n <= 1 ? 0 : 6 * n3 / 5 - 15L * n * n + 100L * n - 140;
+            case 4 -> 4 * n3 / 5;
+            case 5 -> 5 * n3 / 4;
+            default -> n3;
+        };
     }
 
     /** Couleurs repères de l'écran titre (BGR555). */
