@@ -329,7 +329,7 @@ public final class OverworldScene implements Scene {
 
     private void startStep(Direction dir, boolean running, int distance) {
         player.startStep(dir, running, distance, runFrames);
-        follower.update(player);                          // le Pokémon part dans la même frame que le joueur
+        follower.follow(player);                          // le Pokémon part dans la même frame que le joueur
     }
 
     /** Une frame du pas en cours ; à l'arrivée : porte, warp, déclencheurs, rencontres, pas suivant. */

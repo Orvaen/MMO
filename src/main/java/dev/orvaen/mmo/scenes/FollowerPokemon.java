@@ -69,20 +69,24 @@ final class FollowerPokemon {
         moveTo(tx, ty, 1.0 / 16);
     }
 
-    /** Une frame : nouveau pas du joueur → le Pokémon part vers la case que le joueur quitte. */
-    void update(OverworldPlayer player) {
-        if (player.steps != seenSteps) {
-            seenSteps = player.steps;
-            int px = player.x, py = player.y;
-            if (Math.abs(px - x) + Math.abs(py - y) > 1) {    // trop loin (saut, téléportation) : il arrive direct
-                x = fromX = px;
-                y = fromY = py;
-                progress = 1;
-            } else {
-                double frames = player.distance / Math.max(0.1, player.speed);
-                moveTo(px, py, 1.0 / Math.max(1, frames));
-            }
+    /** Nouveau pas du joueur ? Le Pokémon part vers la case que le joueur quitte (sans avancer le temps). */
+    void follow(OverworldPlayer player) {
+        if (player.steps == seenSteps) return;
+        seenSteps = player.steps;
+        int px = player.x, py = player.y;
+        if (Math.abs(px - x) + Math.abs(py - y) > 1) {
+            x = fromX = px;
+            y = fromY = py;
+            progress = 1;
+        } else {
+            double frames = player.distance / Math.max(0.1, player.speed);
+            moveTo(px, py, 1.0 / Math.max(1, frames));
         }
+    }
+
+    /** Une frame : suit les nouveaux pas du joueur, puis avance. */
+    void update(OverworldPlayer player) {
+        follow(player);
         if (progress < 1) {
             progress = Math.min(1, progress + rate);
             idle = 0;
@@ -138,7 +142,7 @@ final class FollowerPokemon {
         if (frames == null) return;
         // un petit saut pendant la 1re moitié de chaque pas ; au repos, une « respiration » lente
         boolean hop = progress < 1 && progress < 0.5;
-        int frame = hop || (progress >= 1 && (idle / 40) % 2 == 1) ? 1 : 0;
+        int frame = hop ? 1 : 0;                                   // immobile : toujours la même image
         int lift = hop ? (int) Math.round(Math.sin(progress * 2 * Math.PI) * 2) : 0;
         double ex = exactX(interpolation), ey = exactY(interpolation);
         double wx = ex + T / 2.0 - 16, wy = ey + T - 29 - lift;
@@ -159,9 +163,9 @@ final class FollowerPokemon {
         q.dispose();
     }
 
-    /** Vrai sprite : pas alterné pendant la marche ; au repos il « piétine » doucement, comme dans HG/SS. */
+    /** Vrai sprite : un pas à chaque case, et au repos une image fixe. */
     private void drawWalking(Graphics2D g, BufferedImage[] walk, double originX, double originY, int zoom, double interp) {
-        int step = progress < 1 ? (progress < 0.5 ? 1 : 0) : (idle / 32) % 2;
+        int step = progress < 1 && progress < 0.5 ? 1 : 0;         // immobile : toujours la même image
         BufferedImage img = FollowerSprites.pick(walk, direction, step);
         int size = img.getWidth();
         double wx = exactX(interp) + T / 2.0 - size / 2.0, wy = exactY(interp) + T - size;

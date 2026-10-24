@@ -32,6 +32,7 @@ final class OverworldPlayer implements Movement.Actor {
     int distance;                       // 16 (un pas) ou 32 (saut de corniche)
     double speed = 1;                   // pixels par frame
     boolean running;                    // pas fait en courant (bouton B)
+    double runDistance;                 // pixels parcourus en courant sans s'arrêter (cycle des jambes)
     boolean stepLeftFoot;               // les pieds alternent à chaque pas
 
     /** Nombre de pas commencés (le Pokémon qui suit s'en sert pour savoir quand bouger). */
@@ -62,7 +63,9 @@ final class OverworldPlayer implements Movement.Actor {
         distance = dist;
         steps++;
         stepLeftFoot = !stepLeftFoot;
+        boolean wasRunning = running;
         running = run && dist == T;
+        if (running && !wasRunning) runDistance = 0;      // nouvelle course : le cycle des jambes repart du début
         // Marche : 16 frames par case (comme sur GBA). Corniche : 2 pixels par frame.
         speed = dist > T ? 2 : running ? T / (double) runFrames : 1;
     }
@@ -70,6 +73,7 @@ final class OverworldPlayer implements Movement.Actor {
     /** Avance le pas d'une frame. Renvoie vrai à l'arrivée sur la nouvelle case. */
     boolean advance() {
         progress += speed;
+        if (running) runDistance += speed;
         if (progress < distance - 1e-6) return false;
         moving = false;
         int tiles = distance / T;
@@ -174,13 +178,13 @@ final class OverworldPlayer implements Movement.Actor {
         int frame = moving && distance == T && animateStep && progress < distance / 2.0 ? foot() : 0;
         if (inPlace > 0) frame = (inPlace / 8) % 2 == 0 ? foot() : 0;
 
-        // Course : phase en l'air sur 5/8 de la case, puis appui sur un pied (qui alterne à chaque case).
-        // Le corps rebondit doucement, au pixel de l'écran près.
+        // Course : un cycle régulier sur 2 cases (32 pixels) — élan, pied gauche, élan, pied droit — calculé sur la
+        // distance parcourue depuis le début de la course : pas de saccade au passage d'une case à l'autre.
         boolean run = moving && running;
-        int bob = 0;
         if (run) {
-            frame = progress >= distance * 0.625 - 1e-6 ? foot() : 0;
-            bob = (int) Math.round(zoom * (1 - Math.sin(Math.PI * progressNow / distance)));
+            double d = runDistance + speed * interpolation;
+            int quarter = (int) Math.floor((d % 32) / 8);
+            frame = quarter == 1 ? 1 : quarter == 3 ? 2 : 0;
         }
 
         // Calé sur un pixel entier de l'écran : chaque pixel du sprite fait exactement « zoom » pixels
@@ -189,7 +193,7 @@ final class OverworldPlayer implements Movement.Actor {
         p.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         p.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         p.translate(Math.round(originX + exactX(interpolation) * zoom),
-                Math.round(originY + exactY(interpolation) * zoom) + bob);
+                Math.round(originY + exactY(interpolation) * zoom));
         p.scale(zoom, zoom);
         avatar.drawOverworld(p, 0, 0, facing, frame, hop, run);
         if (tallGrass && !moving) {
