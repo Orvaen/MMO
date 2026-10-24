@@ -91,6 +91,19 @@ public final class Game {
         tick();
     }
 
+    private Backdrop backdrop;
+
+    /** Fond animé des écrans d'accueil, construit une fois à partir de la ROM. */
+    public Backdrop backdrop() {
+        if (backdrop == null) backdrop = new Backdrop(data);
+        return backdrop;
+    }
+
+    /** Ferme le jeu proprement (sauvegarde comprise) à la fin de la frame. */
+    public void quit() {
+        running = false;
+    }
+
     /** Taille de la fenêtre de jeu en pixels (interface haute résolution, souris). */
     public int viewWidth() {
         return viewWidth;

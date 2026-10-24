@@ -161,6 +161,23 @@ public final class PlayerGraphics {
         }
     }
 
+    /**
+     * Pointeurs vers les tables d'espèces (sprites de face / de dos, palettes normales / chromatiques).
+     * Elles ont exactement la même forme que celles des dresseurs ({image, 0x800, n°}, {palette, n°}) :
+     * l'entrée n° 136 serait Pyroli au lieu de l'héroïne.
+     */
+    private static final int[] SPECIES_TABLE_POINTERS = {0x128, 0x12C, 0x130, 0x134};
+    /** Les tables d'espèces comptent 412 entrées, celles des dresseurs moins de 200. */
+    private static final int SPECIES_LIKE = 200;
+
+    private static boolean isSpeciesTable(Rom rom, int offset, int tagOffset) {
+        for (int ptr : SPECIES_TABLE_POINTERS) {
+            if (rom.pointer(ptr) == offset) return true;
+        }
+        int e = offset + SPECIES_LIKE * 8;
+        return rom.inRange(e, 8) && rom.u16(e + tagOffset) == SPECIES_LIKE && rom.pointer(e) >= 0;
+    }
+
     /** Table {ptr, 0x800, n°} des portraits de dresseurs, numérotée depuis 0. */
     private static int findSheetTable(Rom rom) {
         outer:
@@ -172,7 +189,10 @@ public final class PlayerGraphics {
                 if (p < 0 || !Lz77.looksCompressed(rom, p)) continue outer;
             }
             int last = o + FRONT_PIC_IDS[GIRL] * 8;
-            if (rom.u16(last + 6) == FRONT_PIC_IDS[GIRL] && rom.u16(last + 4) == FRONT_PIC_SIZE) return o;
+            if (rom.u16(last + 6) == FRONT_PIC_IDS[GIRL] && rom.u16(last + 4) == FRONT_PIC_SIZE
+                    && !isSpeciesTable(rom, o, 6)) {
+                return o;
+            }
         }
         throw new RomException("table des portraits de dresseurs introuvable");
     }
@@ -193,6 +213,7 @@ public final class PlayerGraphics {
                 if (p < 0 || !Lz77.looksCompressed(rom, p) || rom.u8(p + 1) != 0x20) continue outer;
             }
             if (!longTable && rom.u16(o + need * 8 + 4) == need && rom.pointer(o + need * 8) >= 0) continue;
+            if (longTable && isSpeciesTable(rom, o, 4)) continue;
             return o;
         }
         throw new RomException("table des palettes de dresseurs introuvable");

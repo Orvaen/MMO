@@ -80,6 +80,7 @@ public final class SelfTest {
         test("ROM : vérification de l'en-tête pour la fenêtre de choix", () -> romCheck(home));
         test("ROM : un chemin par jeu, ancien réglage repris, dernier jeu relancé", () -> romSlots(home));
         test("Fenêtres : appel natif de la barre de titre sombre (sonde libc hors Windows)", SelfTest::nativeTitleBar);
+        test("Écran titre : fond tiré de la ROM, Jouer / Personnage", SelfTest::titleScreen);
         test("Export : sprites, cartes et CSV", () -> exportTo(home.resolve("export")));
 
         System.out.printf("%n%d réussi(s), %d échec(s)%n", passed, failures.size());
@@ -689,6 +690,36 @@ public final class SelfTest {
 
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase().contains("windows");
+    }
+
+    private static void titleScreen() {
+        Game g = freshGame();
+        dev.orvaen.mmo.engine.Backdrop b = g.backdrop();
+        check(!b.hasLegends(), "ROM de test : pas de légendaires (emplacements vides) → pas d'image cassée");
+        BufferedImage img = g.renderWindow(1280, 800);
+        check(img != null, "rendu possible");
+
+        dev.orvaen.mmo.scenes.TitleScene t = new dev.orvaen.mmo.scenes.TitleScene(g);
+        g.push(t);
+        BufferedImage frame = g.renderWindow(1280, 800);
+        check(frame.getRGB(640, 30) != frame.getRGB(5, 5) || frame.getRGB(640, 30) != 0xFF000000, "fond dessiné");
+        click(g, t.anchor("PLAY"));
+        for (int i = 0; i < 30; i++) g.simulateFrame();
+        check(g.top() instanceof CharacterCreatorScene, "sans personnage : Jouer → création");
+
+        Game g2 = freshGame();
+        g2.save.name = "Rayan";
+        g2.save.look = PlayerLook.defaults();
+        dev.orvaen.mmo.scenes.TitleScene t2 = new dev.orvaen.mmo.scenes.TitleScene(g2);
+        g2.push(t2);
+        g2.renderWindow(1280, 800);
+        click(g2, t2.anchor("CHARACTER"));
+        check(g2.top() instanceof CharacterCreatorScene, "Modifier le personnage");
+        tap(g2, Button.B);
+        check(g2.top() == t2, "retour à l'accueil");
+        click(g2, t2.anchor("PLAY"));
+        for (int i = 0; i < 30; i++) g2.simulateFrame();
+        check(g2.top() instanceof OverworldScene, "avec personnage : Jouer → le monde");
     }
 
     private static void exportTo(Path dir) throws Exception {

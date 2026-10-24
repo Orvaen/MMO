@@ -189,9 +189,14 @@ public final class SyntheticRom {
 
         int frontTable = alloc(n * 8);
         int palTable = alloc(n * 8);
+        // Même forme que dans les vraies ROM : {image, 0x800, n° d'espèce} et {palette, n°}.
+        // Elle ressemble à s'y méprendre à la table des portraits de dresseurs (piège voulu).
         for (int i = 0; i < n; i++) {
             ptr(frontTable + i * 8, spriteData);
+            w16(frontTable + i * 8 + 4, 0x800);
+            w16(frontTable + i * 8 + 6, i);
             ptr(palTable + i * 8, palData);
+            w16(palTable + i * 8 + 4, i);
         }
         ptr(GameProfile.PTR_SPECIES_NAMES, names);
         ptr(GameProfile.PTR_SPECIES_INFO, stats);

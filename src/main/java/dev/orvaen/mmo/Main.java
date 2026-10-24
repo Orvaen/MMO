@@ -7,7 +7,7 @@ import dev.orvaen.mmo.engine.Storage;
 import dev.orvaen.mmo.rom.Rom;
 import dev.orvaen.mmo.rom.RomCheck;
 import dev.orvaen.mmo.rom.RomException;
-import dev.orvaen.mmo.scenes.CharacterCreatorScene;
+import dev.orvaen.mmo.scenes.TitleScene;
 import dev.orvaen.mmo.tools.Extractor;
 
 import javax.swing.JOptionPane;
@@ -72,7 +72,7 @@ public final class Main {
         if (data == null) return;
         System.out.println(data.summary());
         Game game = new Game(data);
-        game.run(() -> CharacterCreatorScene.firstScene(game));
+        game.run(() -> new TitleScene(game));
     }
 
     /**

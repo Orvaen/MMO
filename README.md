@@ -63,6 +63,14 @@ Le dossier `export/` est ignoré par git.
 | Liste de toutes les cartes (téléportation, outil de dev) | M |
 | Page précédente / suivante dans les listes | A / E, Page↑ / Page↓ |
 
+## Écran d'accueil
+
+Au lancement, un écran titre façon PokeMMO : **Jouer**, **Modifier le personnage**, **Quitter**.
+Son fond animé est construit à partir de ta ROM : ta ville de départ et ses routes en panoramique
+de nuit, et le duo légendaire de ta cartouche qui flotte de part et d'autre (Ho-Oh et Lugia pour
+Rouge Feu / Vert Feuille, Groudon et Kyogre pour Émeraude). Le même fond sert derrière la création
+de personnage.
+
 ## Création du personnage
 
 L'écran **Nouveau personnage** reprend celui de PokeMMO : panneau sombre en haute résolution

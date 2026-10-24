@@ -473,7 +473,7 @@ public final class CharacterCreatorScene implements Scene {
 
     @Override
     public void renderHiRes(Graphics2D g, int w, int h) {
-        HiUi.checkerTunnel(g, w, h, frame * 0.003);
+        game.backdrop().render(g, w, h, frame);
         Layout l = layout();
         g.translate(l.ox(), l.oy());
         g.scale(l.scale(), l.scale());
