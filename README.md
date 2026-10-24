@@ -63,6 +63,7 @@ Le dossier `export/` est ignoré par git.
 | Liste de toutes les cartes (téléportation, outil de dev) | M |
 | Zoom du monde (mémorisé) | + / - , ou Ctrl + molette |
 | Compteur d'images par seconde et diagnostic d'affichage | F3 |
+| Couper / remettre le son | F9 |
 | Page précédente / suivante dans les listes | A / E, Page↑ / Page↓ |
 
 ## Écran d'accueil
@@ -132,6 +133,11 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   fondus, drapeaux et variables sauvegardés. Nouvelle partie : accueil par le Professeur, puis (Rouge Feu /
   Vert Feuille) réveil dans ta chambre. Les combats de dresseur sont provisoires (équipe lue dans la ROM,
   comptés gagnés) en attendant le vrai système de combat
+- **Musique et sons** : lecteur du moteur sonore des jeux GBA (MP2K / « Sappy ») écrit en Java — la table des
+  morceaux, les pistes, les instruments (échantillons, canaux Game Boy carré / onde / bruit, percussions,
+  partages de clavier) et les enveloppes sont lus dans ta ROM. Musique de chaque carte, écran titre, accueil du
+  Professeur, combats, capture, fanfares et effets des scripts (playbgm, playse, playfanfare…), portes et
+  escaliers. **F9** coupe / remet le son
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
 - **Fenêtres façon PokeMMO** : Pokédex (touche P) et carte de dresseur (touche C) s'ouvrent sans bloquer

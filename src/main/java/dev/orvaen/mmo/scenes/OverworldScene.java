@@ -96,6 +96,7 @@ public final class OverworldScene implements Scene {
     private boolean battling;
     private Npc speaker;
     private boolean warpedIn;
+    private int savedBgm;                // savebgm : musique imposée par l'histoire (0 : celle de la carte)
     private final java.util.Set<Integer> despawned = new java.util.HashSet<>(); // retirés sans drapeau
 
     // États divers
@@ -145,6 +146,12 @@ public final class OverworldScene implements Scene {
     public void onEnter() {
         refreshAvatar();
         battling = false;
+        game.data.audio.playBgm(defaultMusic());     // retour d'un combat : la musique de la carte reprend
+    }
+
+    /** Musique « normale » : celle imposée par l'histoire, sinon celle de la carte. */
+    private int defaultMusic() {
+        return savedBgm != 0 ? savedBgm : map == null ? 0 : map.music;
     }
 
     // ------------------------------------------------------------------ logique
@@ -283,6 +290,7 @@ public final class OverworldScene implements Scene {
                 doorY = ty;
                 doorWarp = front.get();
                 playDoor(true);
+                game.data.audio.playSe(game.data.songs.door());
                 doorPhase = DoorPhase.OPEN_TO_ENTER;
                 return;
             }
@@ -477,6 +485,7 @@ public final class OverworldScene implements Scene {
 
     private void doWarp(Warp w) {
         if (game.isFading()) return;
+        if (door == null) game.data.audio.playSe(game.data.songs.exit());   // escaliers, tapis de sortie
         GameMap from = map;
         int fromX = px, fromY = py;
         game.fadeThen(() -> {
@@ -611,6 +620,7 @@ public final class OverworldScene implements Scene {
         loadNpcs();
         runMapScript(MAP_ON_RESUME);
         animCells.clear();
+        game.data.audio.playBgm(defaultMusic());
     }
 
     /** Scripts « simples » de la carte (exécutés tout de suite, sans attendre). */
@@ -829,6 +839,14 @@ public final class OverworldScene implements Scene {
 
         @Override public boolean battleBusy() { return battling; }
         @Override public void showMonPic(int species) { monPic = species; }
+        @Override public void playBgm(int song) { game.data.audio.playBgm(song); }
+        @Override public void saveBgm(int song) { savedBgm = song; }
+        @Override public void fadeDefaultBgm() { game.data.audio.playBgm(defaultMusic()); }
+        @Override public void fadeOutBgm(int speed) { game.data.audio.fadeOutBgm(Math.max(8, speed * 8)); }
+        @Override public void playSe(int song) { game.data.audio.playSe(song); }
+        @Override public void playFanfare(int song) { game.data.audio.playFanfare(song); }
+        @Override public boolean fanfareBusy() { return game.data.audio.fanfareBusy(); }
+        @Override public boolean seBusy() { return game.data.audio.effectsBusy(); }
 
         @Override
         public void special(int id, int arg) {

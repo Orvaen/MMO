@@ -22,6 +22,8 @@ public final class GameData {
     public final ObjectGraphics objects;
     public final TileAnims tileAnims;
     public final ScriptTables scripts;
+    public final dev.orvaen.mmo.audio.AudioEngine audio;
+    public final dev.orvaen.mmo.audio.Songs songs;
     private Trainers trainers;
     public PlayerGraphics player;
 
@@ -35,6 +37,8 @@ public final class GameData {
         this.objects = new ObjectGraphics(rom);
         this.tileAnims = new TileAnims(rom);
         this.scripts = new ScriptTables(rom);
+        this.audio = new dev.orvaen.mmo.audio.AudioEngine(rom);
+        this.songs = dev.orvaen.mmo.audio.Songs.of(rom.profile());
         this.player = new PlayerGraphics(rom);
     }
 
@@ -50,9 +54,9 @@ public final class GameData {
         StringBuilder anims = new StringBuilder();
         for (var a : tileAnims.anims()) anims.append(anims.isEmpty() ? "" : ", ").append(a.name());
         return String.format("%s · %d espèces · %d cartes · %d zones de rencontres · sprites du joueur : %s"
-                        + " · %d graphismes de PNJ · %d portes animées · tuiles animées : %s",
+                        + " · %d graphismes de PNJ · %d portes animées · tuiles animées : %s · %d morceaux",
                 rom, species.all().size(), total, wild.mapsWithLandEncounters(),
                 player.available() ? "ROM" : "avatar de secours (" + player.problem() + ")",
-                objects.count(), doors.count(), anims.isEmpty() ? "aucune" : anims);
+                objects.count(), doors.count(), anims.isEmpty() ? "aucune" : anims, audio.songCount());
     }
 }

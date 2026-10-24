@@ -65,6 +65,7 @@ public final class IntroScene implements Scene {
         this.mon = INTRO_SPECIES < game.data.species.count() ? game.data.species.frontSprite(INTRO_SPECIES) : null;
         this.pic = professor;
         game.fadeInFromBlack();
+        game.data.audio.playBgm(game.data.songs.intro());
     }
 
     private String playerName() {
@@ -153,7 +154,10 @@ public final class IntroScene implements Scene {
                 }
             }
             case LETS_GO -> {
-                if (box.takeButton()) go(Step.EXIT);
+                if (box.takeButton()) {
+                    game.data.audio.fadeOutBgm(60);
+                    go(Step.EXIT);
+                }
             }
             case EXIT -> {
                 if (stepFrame == 70) {

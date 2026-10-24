@@ -41,6 +41,7 @@ public final class SyntheticRom {
         buildDoorAnims();
         buildTileAnims();
         buildResetScript();
+        buildSongs();
         return rom;
     }
 
@@ -267,6 +268,44 @@ public final class SyntheticRom {
         ptr(ts + 0x0C, metatiles);
         ptr(ts + 0x14, attrs);
         return ts;
+    }
+
+    public static final int SONG_COUNT = 120;
+
+    /**
+     * Table de 120 morceaux identiques : une piste, un instrument échantillonné (onde carrée en boucle),
+     * tempo 120, un Do de 24 ticks (une noire), une attente, puis fin.
+     */
+    private void buildSongs() {
+        int sample = alloc(16 + 64);
+        w16(sample, 0);
+        w16(sample + 2, 0x4000);                          // en boucle
+        w32(sample + 4, 13379 * 1024);
+        w32(sample + 8, 0);
+        w32(sample + 12, 64);
+        for (int i = 0; i < 64; i++) rom[sample + 16 + i] = (byte) (i < 32 ? 100 : -100);
+        int voices = alloc(12 * 2);
+        rom[voices] = 0;                                  // DirectSound
+        rom[voices + 1] = 60;
+        ptr(voices + 4, sample);
+        rom[voices + 8] = (byte) 255;                     // attaque immédiate
+        rom[voices + 9] = 0;
+        rom[voices + 10] = (byte) 255;                    // maintien plein
+        rom[voices + 11] = (byte) 200;                    // relâche
+        int track = alloc(16);
+        int t = track;
+        rom[t++] = (byte) 0xBD; rom[t++] = 0;             // VOICE 0
+        rom[t++] = (byte) 0xBE; rom[t++] = 100;           // VOL
+        rom[t++] = (byte) 0xBB; rom[t++] = 60;            // TEMPO 120
+        rom[t++] = (byte) 0xE7; rom[t++] = 60; rom[t++] = 127; // N24 Do4 v127
+        rom[t++] = (byte) 0xB0;                           // W96
+        rom[t] = (byte) 0xB1;                             // FINE
+        int header = alloc(12);
+        rom[header] = 1;
+        ptr(header + 4, voices);
+        ptr(header + 8, track);
+        int table = alloc(SONG_COUNT * 8);
+        for (int i = 0; i < SONG_COUNT; i++) ptr(table + i * 8, header);
     }
 
     /** Script « début de partie » : 40 setflag (dont celui du PNJ d'histoire), puis end. */

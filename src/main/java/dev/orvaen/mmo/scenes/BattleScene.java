@@ -44,6 +44,7 @@ public final class BattleScene implements Scene {
         this.sprite = game.data.species.frontSprite(speciesId);
         this.avatar = new PlayerSprite(game.data.player, game.save.look);
         this.text = "Un " + species.name() + " sauvage apparaît !";
+        game.data.audio.playBgm(game.data.songs.vsWild());
     }
 
     @Override
@@ -73,7 +74,10 @@ public final class BattleScene implements Scene {
                     go(State.RESULT, caught
                             ? "Et hop ! " + species.name() + " est capturé !"
                             : "Mince ! " + species.name() + " s'est libéré !");
-                    if (caught) game.save.caught.add(species.id());
+                    if (caught) {
+                        game.save.caught.add(species.id());
+                        game.data.audio.playBgm(game.data.songs.caught());
+                    }
                 }
             }
             case RESULT -> {

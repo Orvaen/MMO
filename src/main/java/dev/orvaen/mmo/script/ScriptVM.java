@@ -48,6 +48,14 @@ public final class ScriptVM {
         void wildBattle(int species, int level);
         boolean battleBusy();
         void showMonPic(int species);
+        void playBgm(int song);
+        void saveBgm(int song);
+        void fadeDefaultBgm();
+        void fadeOutBgm(int speed);
+        void playSe(int song);
+        void playFanfare(int song);
+        boolean fanfareBusy();
+        boolean seBusy();
         /** Fonction spéciale du jeu (renommer un Pokémon…) ; {@code arg} = VAR_0x8004. */
         void special(int id, int arg);
         /** Une fonction spéciale attend encore le joueur (écran de nom…) : waitstate bloque. */
@@ -66,7 +74,7 @@ public final class ScriptVM {
     public static final int VAR_RESULT = 0x800D, VAR_FACING = 0x800C, VAR_LAST_TALKED = 0x800F;
     private static final int TRAINER_FLAGS = 0x500;
 
-    private enum Wait { NONE, PRINT, BUTTON, MOVEMENT, DELAY, CHOICE, FADE, BATTLE, DOOR, STATE }
+    private enum Wait { NONE, PRINT, BUTTON, MOVEMENT, DELAY, CHOICE, FADE, BATTLE, DOOR, STATE, FANFARE, SE }
 
     private final Rom rom;
     private final Host host;
@@ -196,6 +204,12 @@ public final class ScriptVM {
             case STATE -> {
                 if (host.stateBusy()) return false;
             }
+            case FANFARE -> {
+                if (host.fanfareBusy()) return false;
+            }
+            case SE -> {
+                if (host.seBusy() && --waitArg > 0) return false;
+            }
         }
         wait = Wait.NONE;
         return true;
@@ -236,7 +250,17 @@ public final class ScriptVM {
         int op = u8();
         switch (op) {
             case 0x27 -> block(Wait.STATE, 0);                                  // waitstate
-            case 0x00, 0x01, 0x2d, 0x2e, 0x30, 0x32, 0x35, 0x66, 0x69, 0x6a, 0x6b, 0x6c, 0x72, 0x76 -> {
+            case 0x2f -> host.playSe(u16());                                    // playse
+            case 0x30 -> block(Wait.SE, 120);                                   // waitse
+            case 0x31 -> host.playFanfare(u16());                               // playfanfare
+            case 0x32 -> block(Wait.FANFARE, 0);                                // waitfanfare
+            case 0x33 -> { host.playBgm(u16()); u8(); }                         // playbgm
+            case 0x34 -> host.saveBgm(u16());                                   // savebgm
+            case 0x35 -> host.fadeDefaultBgm();                                 // fadedefaultbgm
+            case 0x36 -> host.playBgm(u16());                                   // fadenewbgm
+            case 0x37 -> host.fadeOutBgm(u8());                                 // fadeoutbgm
+            case 0x38 -> u8();                                                  // fadeinbgm
+            case 0x00, 0x01, 0x2d, 0x2e, 0x66, 0x69, 0x6a, 0x6b, 0x6c, 0x72, 0x76 -> {
                 if (op == 0x66) block(Wait.PRINT, 0);      // waitmessage
                 if (op == 0x76) host.hideMonPic();        // hidemonpic
                 if (op == 0x6b || op == 0x6c) host.closeMessage(); // release(all) : la boîte se ferme

@@ -289,6 +289,8 @@ public final class Game {
     public void run(Supplier<Scene> first) {
         createWindow();
         frame.setVisible(true);
+        if (Storage.muted()) data.audio.toggleMute();
+        data.audio.start();
         // Synchronisation sur l'écran : sous Windows on attend la composition DWM après chaque image
         // (fiable en fenêtre) ; ailleurs on demande la V-Sync à Java2D ; sinon minuterie.
         boolean vsync;
@@ -356,6 +358,7 @@ public final class Game {
             waitUntil(Math.min(nextTick, nextFrame));
         }
         save.store();
+        data.audio.shutdown();
         frame.dispose();
         System.exit(0);
     }
@@ -417,6 +420,7 @@ public final class Game {
         input.poll();
         if (input.zoomSteps() != 0) adjustZoom(input.zoomSteps());
         if (input.fpsToggled()) showFps = !showFps;
+        if (input.muteToggled()) Storage.setMuted(data.audio.toggleMute());
         sizeScreen();
         if (scriptFade < scriptFadeTarget) scriptFade = Math.min(scriptFadeTarget, scriptFade + 0.0625f);
         else if (scriptFade > scriptFadeTarget) scriptFade = Math.max(scriptFadeTarget, scriptFade - 0.0625f);

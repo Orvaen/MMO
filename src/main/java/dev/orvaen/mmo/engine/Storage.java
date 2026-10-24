@@ -90,6 +90,17 @@ public final class Storage {
         write(CONFIG, p, "Configuration du moteur");
     }
 
+    /** Son coupé (touche F9), mémorisé. */
+    public static boolean muted() {
+        return Boolean.parseBoolean(read(CONFIG).getProperty("audio.muted", "false"));
+    }
+
+    public static void setMuted(boolean muted) {
+        Properties p = read(CONFIG);
+        p.setProperty("audio.muted", String.valueOf(muted));
+        write(CONFIG, p, "Configuration du moteur");
+    }
+
     /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
     public static RomCheck.Slot lastSlot() {
         String v = read(CONFIG).getProperty("rom.last", "");

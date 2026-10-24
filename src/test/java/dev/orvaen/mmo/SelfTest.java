@@ -79,6 +79,7 @@ public final class SelfTest {
         test("Histoire : drapeaux de début de partie et sauvegarde", SelfTest::storyFlags);
         test("Histoire : un personnage réapparaît quand son drapeau est effacé", SelfTest::storyRespawn);
         test("Pokédex : fenêtre, recherche, sélection, fermeture", SelfTest::pokedexWindow);
+        test("Son : table des morceaux, lecture d'une note, fin du morceau", SelfTest::audio);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
         test("Carte de dresseur : n° ID, temps de jeu, ouverture depuis le menu", SelfTest::trainerCard);
         test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
@@ -651,6 +652,31 @@ public final class SelfTest {
         var again = Storage.Save.load("BPRE");
         check(again.flags.get(SyntheticRom.STORY_FLAG) && again.eventsReady, "drapeaux sauvegardés");
         eq(1, (int) again.vars.getOrDefault(SyntheticRom.TRIGGER_VAR, 0) * 0 + 1, "variables relues");
+    }
+
+    private static double energy(dev.orvaen.mmo.audio.AudioEngine a, int frames) {
+        float[] buf = new float[frames * 2];
+        a.renderOffline(buf, frames);
+        double e = 0;
+        for (float f : buf) e += f * f;
+        return Math.sqrt(e / buf.length);
+    }
+
+    private static void audio() {
+        GameData d = data();
+        var a = new dev.orvaen.mmo.audio.AudioEngine(d.rom);
+        check(a.available(), "table des morceaux trouvée");
+        eq(SyntheticRom.SONG_COUNT, a.songCount(), "nombre de morceaux");
+        check(energy(a, 4410) < 1e-6, "silence avant de jouer");
+        a.playBgm(1);
+        double note = energy(a, 11025);                  // 0,25 s : la noire joue (0,5 s à 120)
+        check(note > 0.05, "la note sonne : " + note);
+        energy(a, 44100 * 3);                            // 3 s : note relâchée, morceau fini
+        check(energy(a, 4410) < 1e-4, "silence à la fin du morceau");
+        eq(0, a.currentBgm(), "morceau terminé");
+        a.playBgm(1);
+        a.toggleMute();
+        check(energy(a, 4410) < 1e-9, "F9 : son coupé");
     }
 
     private static void tileAnimation() {

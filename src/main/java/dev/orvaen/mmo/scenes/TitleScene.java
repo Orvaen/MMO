@@ -37,6 +37,7 @@ public final class TitleScene implements Scene {
 
     @Override
     public void onEnter() {
+        game.data.audio.playBgm(game.data.songs.title());
         choices.clear();
         choices.add(Choice.PLAY);
         if (game.save.hasCharacter()) {

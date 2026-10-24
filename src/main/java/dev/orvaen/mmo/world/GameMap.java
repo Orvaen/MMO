@@ -26,6 +26,8 @@ public final class GameMap {
     public List<CoordEvent> triggers = List.of();
     /** Scripts de la carte (à l'arrivée, à chaque frame…) : pointeur ROM, -1 si aucun. */
     public int scripts = -1;
+    /** Musique de la carte (n° de morceau de la ROM). */
+    public int music;
     private final GameProfile profile;
 
     public GameMap(int group, int num, String name, int mapType, MapLayout layout,

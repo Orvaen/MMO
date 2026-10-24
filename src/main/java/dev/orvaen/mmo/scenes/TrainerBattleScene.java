@@ -51,6 +51,7 @@ public final class TrainerBattleScene implements Scene {
             pages.addAll(TextCodec.dialogue(game.data.rom, defeatText, 512, player, "RIVAL"));
         }
         box.show(pages, null);
+        game.data.audio.playBgm(game.data.songs.vsTrainer());
     }
 
     @Override

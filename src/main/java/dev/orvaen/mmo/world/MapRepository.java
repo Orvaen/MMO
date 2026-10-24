@@ -105,6 +105,7 @@ public final class MapRepository {
                 profile);
         map.triggers = readTriggers(rom.pointer(header + 0x04));
         map.scripts = rom.pointer(header + 0x08);
+        map.music = rom.u16(header + 0x10);
         return map;
     }
 
