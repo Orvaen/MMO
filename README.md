@@ -65,12 +65,17 @@ Le dossier `export/` est ignoré par git.
 
 ## Création du personnage
 
-Comme dans PokeMMO, ton personnage utilise **les sprites du héros et de l'héroïne de ta ROM**
-(marche, portrait de face, vue de dos en combat), que le moteur recolore pièce par pièce :
+L'écran **Nouveau personnage** reprend celui de PokeMMO : panneau sombre en haute résolution
+(texte net, à la souris comme au clavier), fond en damier en perspective, et ton personnage utilise
+**les sprites du héros et de l'héroïne de ta ROM**, recolorés pièce par pièce :
 
-- **Nom** (10 caractères, accents acceptés) et **gabarit** : garçon ou fille
-- **Peau** : 7 teintes
-- **Cheveux, couvre-chef, haut, bas, chaussures, sac** : 27 teintures chacun
+- **Genre** (Homme / Femme) et **Teint de peau** (7 teintes)
+- **Chapeau, Cheveux, Haut, Jambes, Chaussures, Dos (sac)** : un menu déroulant de 27 teintes
+  avec pastilles, et une **roue de couleur** pour n'importe quelle teinte (carré saturation /
+  luminosité + barre de teinte)
+- **Nom du personnage** (12 caractères), **Région de départ** (celle de ta ROM)
+- Trois aperçus animés (face, dos, profil) avec flèches de rotation, et les sprites de combat
+  (face et dos) ; **Aléatoire** et **Créer personnage**
 
 Chaque pièce peut garder sa couleur d'origine. Les ombrages du sprite sont conservés (chaque nuance
 garde son écart de luminosité sur la nouvelle teinte), et les détails qui ne sont pas des vêtements

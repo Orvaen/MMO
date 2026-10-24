@@ -2,6 +2,9 @@ package dev.orvaen.mmo.engine;
 
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -15,6 +18,45 @@ public final class Input extends KeyAdapter {
     private final Map<Button, Boolean> pressed = new EnumMap<>(Button.class);
     private final StringBuilder pendingTyped = new StringBuilder();
     private String frameTyped = "";
+
+    // Souris : état « vivant » (événements AWT) et état figé pour la frame
+    private int liveMouseX = -1, liveMouseY = -1;
+    private boolean liveMouseDown;
+    private int livePresses, liveReleases, liveWheel;
+    private int mouseX = -1, mouseY = -1;
+    private boolean mouseDown, mousePressed, mouseReleased;
+    private int wheel;
+    private final MouseAdapter mouse = new MouseAdapter() {
+        @Override
+        public void mouseMoved(MouseEvent e) {
+            move(e.getX(), e.getY());
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent e) {
+            move(e.getX(), e.getY());
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            if (e.getButton() != MouseEvent.BUTTON1) return;
+            e.getComponent().requestFocus();
+            move(e.getX(), e.getY());
+            setMouseButton(true);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (e.getButton() != MouseEvent.BUTTON1) return;
+            move(e.getX(), e.getY());
+            setMouseButton(false);
+        }
+
+        @Override
+        public void mouseWheelMoved(MouseWheelEvent e) {
+            addWheel(e.getWheelRotation());
+        }
+    };
 
     public Input() {
         for (Button b : Button.values()) {
@@ -73,6 +115,15 @@ public final class Input extends KeyAdapter {
     public synchronized void poll() {
         frameTyped = pendingTyped.toString();
         pendingTyped.setLength(0);
+        mouseX = liveMouseX;
+        mouseY = liveMouseY;
+        mousePressed = livePresses > 0;
+        mouseReleased = liveReleases > 0;
+        mouseDown = liveMouseDown || mousePressed;
+        wheel = liveWheel;
+        livePresses = 0;
+        liveReleases = 0;
+        liveWheel = 0;
         for (Button b : Button.values()) {
             boolean down = live.get(b);
             int h = held.get(b);
@@ -83,6 +134,7 @@ public final class Input extends KeyAdapter {
 
     public synchronized void releaseAll() {
         for (Button b : Button.values()) live.put(b, false);
+        liveMouseDown = false;
         pendingTyped.setLength(0);
     }
 
@@ -94,6 +146,39 @@ public final class Input extends KeyAdapter {
     public boolean down(Button b) { return held.get(b) > 0; }
     public boolean pressed(Button b) { return pressed.get(b); }
     public int heldFrames(Button b) { return held.get(b); }
+
+    // ------------------------------------------------------------------ souris
+
+    /** Écouteur à brancher sur le composant qui reçoit la souris. */
+    public MouseAdapter mouse() {
+        return mouse;
+    }
+
+    /** Déplacement programmatique (tests). */
+    public synchronized void move(int x, int y) {
+        liveMouseX = x;
+        liveMouseY = y;
+    }
+
+    /** Clic gauche programmatique (tests) : vrai = enfoncé. */
+    public synchronized void setMouseButton(boolean down) {
+        if (down && !liveMouseDown) livePresses++;
+        if (!down && liveMouseDown) liveReleases++;
+        liveMouseDown = down;
+    }
+
+    public synchronized void addWheel(int notches) {
+        liveWheel += notches;
+    }
+
+    public int mouseX() { return mouseX; }
+    public int mouseY() { return mouseY; }
+    public boolean mouseDown() { return mouseDown; }
+    /** Bouton gauche enfoncé pendant cette frame. */
+    public boolean mousePressed() { return mousePressed; }
+    public boolean mouseReleased() { return mouseReleased; }
+    /** Crans de molette pendant cette frame (positif = vers le bas). */
+    public int wheel() { return wheel; }
 
     /** Appui avec répétition automatique (menus). */
     public boolean repeat(Button b) {

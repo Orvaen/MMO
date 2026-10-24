@@ -31,6 +31,8 @@ public final class Game {
     private final Input input = new Input();
     private final Deque<Scene> scenes = new ArrayDeque<>();
     private final BufferedImage screen = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+    private int viewWidth = WIDTH * 4;
+    private int viewHeight = HEIGHT * 4;
     private JFrame frame;
     private Canvas canvas;
     private volatile boolean running = true;
@@ -47,9 +49,12 @@ public final class Game {
 
     private void createWindow() {
         canvas = new Canvas();
-        canvas.setPreferredSize(new Dimension(WIDTH * 3, HEIGHT * 3));
+        canvas.setPreferredSize(new Dimension(WIDTH * 4, HEIGHT * 4));
         canvas.setBackground(Color.BLACK);
         canvas.addKeyListener(input);
+        canvas.addMouseListener(input.mouse());
+        canvas.addMouseMotionListener(input.mouse());
+        canvas.addMouseWheelListener(input.mouse());
         canvas.setFocusTraversalKeysEnabled(false);
 
         frame = new JFrame("Orvaen MMO — " + data.rom.profile().displayName(data.rom.gameCode()));
@@ -84,6 +89,27 @@ public final class Game {
     /** Avance d'une frame sans fenêtre (tests, serveur, outils). */
     public void simulateFrame() {
         tick();
+    }
+
+    /** Taille de la fenêtre de jeu en pixels (interface haute résolution, souris). */
+    public int viewWidth() {
+        return viewWidth;
+    }
+
+    public int viewHeight() {
+        return viewHeight;
+    }
+
+    /** Dessine une frame complète (jeu + interface haute résolution) à la taille donnée (tests, captures). */
+    public BufferedImage renderWindow(int width, int height) {
+        viewWidth = width;
+        viewHeight = height;
+        drawScreen();
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        composite(g, width, height);
+        g.dispose();
+        return img;
     }
 
     /** Dessine une frame sur l'écran virtuel et le renvoie (tests, captures). */
@@ -182,17 +208,45 @@ public final class Game {
         if (bs == null) return;
         Graphics2D out = (Graphics2D) bs.getDrawGraphics();
         try {
-            int cw = canvas.getWidth(), ch = canvas.getHeight();
-            out.setColor(Color.BLACK);
-            out.fillRect(0, 0, cw, ch);
-            int scale = Math.max(1, Math.min(cw / WIDTH, ch / HEIGHT));
-            int w = WIDTH * scale, h = HEIGHT * scale;
-            out.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            out.drawImage(screen, (cw - w) / 2, (ch - h) / 2, w, h, null);
+            viewWidth = canvas.getWidth();
+            viewHeight = canvas.getHeight();
+            composite(out, viewWidth, viewHeight);
         } finally {
             out.dispose();
         }
         bs.show();
+    }
+
+    /** Image du jeu agrandie (pixels nets), puis interface haute résolution, puis fondu. */
+    private void composite(Graphics2D out, int cw, int ch) {
+        out.setColor(Color.BLACK);
+        out.fillRect(0, 0, cw, ch);
+        int scale = Math.max(1, Math.min(cw / WIDTH, ch / HEIGHT));
+        int w = WIDTH * scale, h = HEIGHT * scale;
+        out.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        out.drawImage(screen, (cw - w) / 2, (ch - h) / 2, w, h, null);
+
+        for (Scene s : visibleScenes()) {
+            Graphics2D g = (Graphics2D) out.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+            s.renderHiRes(g, cw, ch);
+            g.dispose();
+        }
+        if (fade > 0) {
+            out.setColor(new Color(0, 0, 0, Math.min(1f, fade)));
+            out.fillRect(0, 0, cw, ch);
+        }
+    }
+
+    private List<Scene> visibleScenes() {
+        List<Scene> visible = new ArrayList<>();
+        for (Scene s : scenes) {
+            visible.add(0, s);
+            if (!s.isOverlay()) break;
+        }
+        return visible;
     }
 
     private void drawScreen() {
@@ -202,18 +256,9 @@ public final class Game {
         g.fillRect(0, 0, WIDTH, HEIGHT);
 
         // On dessine depuis la dernière scène opaque jusqu'au sommet de la pile.
-        List<Scene> visible = new ArrayList<>();
-        for (Scene s : scenes) {
-            visible.add(0, s);
-            if (!s.isOverlay()) break;
-        }
-        for (Scene s : visible) {
+        for (Scene s : visibleScenes()) {
             g.setFont(Ui.FONT);
             s.render(g);
-        }
-        if (fade > 0) {
-            g.setColor(new Color(0, 0, 0, Math.min(1f, fade)));
-            g.fillRect(0, 0, WIDTH, HEIGHT);
         }
         g.dispose();
     }

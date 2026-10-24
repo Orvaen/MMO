@@ -370,19 +370,32 @@ public final class SelfTest {
     // ------------------------------------------------------------------ personnage
 
     private static void lookEncoding() {
-        PlayerLook a = new PlayerLook(1, 3, 4, 1, 7, 2, 9, 5);
+        PlayerLook a = new PlayerLook(1, PlayerLook.SKIN_TONES[3], 0xFF8800, PlayerLook.ORIGIN, 0x2A9D8F,
+                0x123456, PlayerLook.ORIGIN, 0xFFFFFF);
         eq(a, PlayerLook.decode(a.encode()), "aller-retour");
-        eq("v2.1.3.4.1.7.2.9.5", a.encode(), "encodage");
-        check(PlayerLook.decode("abc") == null && PlayerLook.decode("v2.1.2") == null && PlayerLook.decode(null) == null,
+        eq("v3.1.e0ac80.ff8800.o.2a9d8f.123456.o.ffffff", a.encode(), "encodage");
+        check(PlayerLook.decode("abc") == null && PlayerLook.decode("v3.1.o") == null
+                && PlayerLook.decode("v3.1.zz.o.o.o.o.o.o") == null && PlayerLook.decode(null) == null,
                 "les chaînes abîmées sont refusées");
-        eq(1, PlayerLook.decode("2.2.4.1.7.2.9.5.6").body(), "ancien format (cheveux longs) → gabarit fille");
-        eq(0, PlayerLook.decode("2.0.4.1.7.2.9.5.6").body(), "ancien format (cheveux courts) → gabarit garçon");
-        PlayerLook clamped = new PlayerLook(5, 99, -1, 0, 0, 0, 0, 0);
-        check(clamped.body() < PlayerLook.BODIES.length && clamped.skin() < PlayerLook.SKIN_TONES.length
-                && clamped.hair() >= 0, "valeurs ramenées dans les bornes");
-        eq(PlayerLook.DYES.length - 1, a.cycle(PlayerLook.Part.HAT, -2).hat(), "le choix boucle vers la fin");
-        eq(0, a.cycle(PlayerLook.Part.HAT, PlayerLook.DYES.length - 1).hat(), "le choix boucle vers le début");
-        eq(-1, PlayerLook.defaults().rgb(PlayerLook.Part.TOP), "index 0 = couleur d'origine");
+        PlayerLook v2 = PlayerLook.decode("v2.1.3.4.1.7.2.9.5");
+        check(v2 != null && v2.body() == 1 && v2.skin() == PlayerLook.SKIN_TONES[3] && v2.hair() == PlayerLook.DYES[4],
+                "ancien format v2 (index de teintes) converti en couleurs");
+        eq(1, PlayerLook.decode("2.2.4.1.7.2.9.5.6").body(), "ancien format v1 (cheveux longs) → femme");
+        eq(0, PlayerLook.decode("2.0.4.1.7.2.9.5.6").body(), "ancien format v1 (cheveux courts) → homme");
+        PlayerLook clamped = new PlayerLook(5, -7, 0x1FFFFFF, 0, 0, 0, 0, 0);
+        check(clamped.body() < PlayerLook.BODIES.length && clamped.skin() == PlayerLook.ORIGIN
+                && clamped.hair() == 0xFFFFFF, "valeurs ramenées dans les bornes");
+
+        PlayerLook d = PlayerLook.defaults();
+        eq(PlayerLook.ORIGIN, d.rgb(PlayerLook.Part.TOP), "par défaut : couleurs d'origine");
+        eq("D'origine", d.colorName(PlayerLook.Part.TOP), "nom de la couleur d'origine");
+        eq("Teint d'origine", d.colorName(PlayerLook.Part.SKIN), "nom du teint d'origine");
+        eq(PlayerLook.DYES[1], d.cyclePreset(PlayerLook.Part.HAT, 1).hat(), "teinte suivante");
+        eq(PlayerLook.DYES[PlayerLook.DYES.length - 1], d.cyclePreset(PlayerLook.Part.HAT, -1).hat(), "boucle vers la fin");
+        PlayerLook custom = d.with(PlayerLook.Part.HAIR, 0x123457);
+        eq("Personnalisée", custom.colorName(PlayerLook.Part.HAIR), "couleur libre de la roue");
+        eq(-1, custom.presetIndex(PlayerLook.Part.HAIR), "pas une teinte proposée");
+        eq(PlayerLook.DYES[0], custom.cyclePreset(PlayerLook.Part.HAIR, 1).hair(), "depuis une couleur libre, on repart du début");
         eq(PlayerLook.DYES.length, PlayerLook.DYE_NAMES.length, "un nom par teinture");
         eq(PlayerLook.SKIN_TONES.length, PlayerLook.SKIN_NAMES.length, "un nom par teinte de peau");
         Random r = new Random(5);
@@ -424,7 +437,7 @@ public final class SelfTest {
         eq(0, o.getRGB(0, 0) >>> 24, "fond transparent");
 
         int blue = indexOf("Bleu");
-        PlayerLook look = PlayerLook.defaults().cycle(PlayerLook.Part.HAT, blue);
+        PlayerLook look = PlayerLook.defaults().with(PlayerLook.Part.HAT, PlayerLook.DYES[blue]);
         BufferedImage dyed = new PlayerSprite(d.player, look).overworldFrame(Direction.DOWN, 0);
         int hat = dyed.getRGB(5, 14), hatShade = dyed.getRGB(5, 15);
         check((hat & 0xFF) > (hat >> 16 & 0xFF), "couvre-chef teint en bleu");
@@ -437,14 +450,14 @@ public final class SelfTest {
         BufferedImage left = new PlayerSprite(d.player, look).overworldFrame(Direction.LEFT, 0);
         eq(left.getRGB(5, 15), right.getRGB(10, 15), "la vue de droite est le miroir de la gauche");
 
-        PlayerLook top = PlayerLook.defaults().cycle(PlayerLook.Part.TOP, indexOf("Vert"));
+        PlayerLook top = PlayerLook.defaults().with(PlayerLook.Part.TOP, PlayerLook.DYES[indexOf("Vert")]);
         BufferedImage face = new PlayerSprite(d.player, top).front();
         int shirt = face.getRGB(30, 30);
         check((shirt >> 8 & 0xFF) > (shirt >> 16 & 0xFF), "portrait : haut teint en vert");
         eq(red, face.getRGB(30, 12), "portrait : casquette d'origine");
         eq(red, face.getRGB(46, 31), "portrait : la balle tenue en main n'est pas teinte");
 
-        PlayerLook skin = PlayerLook.defaults().cycle(PlayerLook.Part.SKIN, 6);
+        PlayerLook skin = PlayerLook.defaults().with(PlayerLook.Part.SKIN, PlayerLook.SKIN_TONES[6]);
         BufferedImage s = new PlayerSprite(d.player, skin).overworldFrame(Direction.DOWN, 0);
         check(s.getRGB(5, 18) != o.getRGB(5, 18), "la teinte de peau change la peau");
     }
@@ -485,52 +498,83 @@ public final class SelfTest {
         for (int i = 0; i < 10; i++) g.simulateFrame();
     }
 
+    /** Clic de souris sur un point de la fenêtre (vue 1280x800). */
+    private static void click(Game g, java.awt.Point p) {
+        g.input().move(p.x, p.y);
+        g.simulateFrame();
+        g.input().setMouseButton(true);
+        g.simulateFrame();
+        g.input().setMouseButton(false);
+        g.simulateFrame();
+    }
+
     private static void createCharacter() {
         Game g = freshGame();
         g.push(CharacterCreatorScene.firstScene(g));
+        g.renderWindow(1280, 800);
         check(g.top() instanceof CharacterCreatorScene, "le 1er lancement ouvre la création");
         CharacterCreatorScene c = (CharacterCreatorScene) g.top();
-        check(c.isTypingName(), "la saisie du nom est active d'entrée");
+        check(c.isTypingName(), "le champ du nom est actif d'entrée");
 
-        typeText(g, "Ra7yan#\b\b");          // '#' refusé, puis 2 effacements → "Ra7y"
+        typeText(g, "Ra7yan#\b\b");               // '#' refusé, puis 2 effacements → "Ra7y"
         eq("Ra7y", c.name(), "saisie + effacement + caractère refusé");
-        typeText(g, "an Lefèvre\n");             // limité à 10 caractères, Entrée valide
-        eq("Ra7yan Lef", c.name(), "limite de 10 caractères");
+        typeText(g, "an Lefèvre-Dupont\n");          // limité à 12 caractères, Entrée valide
+        eq("Ra7yan Lefèv", c.name(), "limite de 12 caractères");
         check(!c.isTypingName(), "Entrée termine la saisie");
-        for (int i = 0; i < 10; i++) g.simulateFrame();
-        eq(1, c.row(), "on passe à la ligne suivante");
+        eq(0, c.focus(), "on passe à la première ligne (Genre)");
 
-        tap(g, Button.RIGHT);                     // gabarit : fille
-        eq(1, c.look().body(), "gabarit changé");
-        tap(g, Button.DOWN);                      // peau
+        // Clavier : genre et teint
         tap(g, Button.RIGHT);
-        eq(1, c.look().skin(), "teinte de peau changée");
+        eq(1, c.look().body(), "genre changé au clavier");
         tap(g, Button.DOWN);
-        tap(g, Button.DOWN);                      // couvre-chef
-        tap(g, Button.LEFT);
-        eq(PlayerLook.DYES.length - 1, c.look().hat(), "teinture du couvre-chef changée (boucle)");
+        tap(g, Button.RIGHT);
+        eq(PlayerLook.SKIN_TONES[1], c.look().skin(), "teint changé au clavier");
+
+        // Souris : menu déroulant des cheveux (ligne 3), choix « Rouge »
+        click(g, c.anchor("selector:3"));
+        check(c.dropdownOpen(), "clic sur le sélecteur → menu déroulant");
+        click(g, c.anchor("item:3:1"));
+        check(!c.dropdownOpen(), "le menu se ferme après un choix");
+        eq(PlayerLook.DYES[1], c.look().hair(), "cheveux teints par le menu");
+
+        // Molette sur le sélecteur du chapeau (ligne 2) : teinte suivante
+        java.awt.Point hat = c.anchor("selector:2");
+        g.input().move(hat.x, hat.y);
+        g.input().addWheel(1);
+        g.simulateFrame();
+        eq(PlayerLook.DYES[1], c.look().hat(), "molette sur un sélecteur");
+
+        // Roue de couleur du haut (ligne 4) : couleur libre dans le carré, puis OK
+        click(g, c.anchor("wheel:4"));
+        check(c.pickerOpen(), "clic sur la roue → sélecteur de couleur");
+        java.awt.Point sv = c.anchor("sv");
+        click(g, new java.awt.Point(sv.x + 40, sv.y - 30));
+        int picked = c.look().top();
+        check(picked >= 0 && c.look().presetIndex(PlayerLook.Part.TOP) < 0, "couleur libre choisie : " + picked);
+        click(g, c.anchor("ok"));
+        check(!c.pickerOpen(), "OK ferme le sélecteur");
+
+        // Flèches de rotation, rendu et validation
+        click(g, c.anchor("arrowRight"));
         check(c.sprite().fromRom(), "l'aperçu utilise les sprites de la ROM");
-
-        BufferedImage img = g.renderFrame();
-        check(img.getRGB(12 + 30, 26 + 12) != img.getRGB(60, 30), "le portrait est dessiné dans l'aperçu");
-
-        tap(g, Button.START);                     // va sur « Terminer »
-        tap(g, Button.A);
+        BufferedImage img = g.renderWindow(1280, 800);
+        eq(1280, img.getWidth(), "rendu haute résolution");
+        click(g, c.anchor("create"));
         for (int i = 0; i < 30; i++) g.simulateFrame();
         check(g.top() instanceof OverworldScene, "après création, on arrive dans le monde");
-        eq("Ra7yan Lef", g.save.name, "nom sauvegardé");
+        eq("Ra7yan Lefèv", g.save.name, "nom sauvegardé");
         eq(c.look(), g.save.look, "apparence sauvegardée");
+        eq(picked, g.save.look.top(), "couleur libre sauvegardée");
     }
 
     private static void creatorRequiresName() {
         Game g = freshGame();
         g.push(CharacterCreatorScene.firstScene(g));
+        g.renderWindow(1280, 800);
         CharacterCreatorScene c = (CharacterCreatorScene) g.top();
-        typeText(g, "   \n");                   // que des espaces
+        typeText(g, "   \n");                       // que des espaces
         check(!c.isTypingName(), "saisie terminée");
-        for (int i = 0; i < 10; i++) g.simulateFrame();
-        tap(g, Button.START);
-        tap(g, Button.A);
+        click(g, c.anchor("create"));
         check(g.top() == c, "on reste sur la création");
         check(c.isTypingName(), "retour à la saisie du nom");
         check(!g.save.hasCharacter(), "rien n'est sauvegardé");
@@ -546,22 +590,19 @@ public final class SelfTest {
         tap(g, Button.A);
         check(g.top() instanceof CharacterCreatorScene, "le menu ouvre la modification");
         CharacterCreatorScene c = (CharacterCreatorScene) g.top();
+        g.renderWindow(1280, 800);
         check(!c.isTypingName(), "le nom existant n'est pas ressaisi");
-        for (int i = 0; i < 10; i++) g.simulateFrame();
-        tap(g, Button.DOWN);
-        tap(g, Button.RIGHT);                     // change le gabarit
+        tap(g, Button.RIGHT);                     // genre (ligne 0)
         check(!c.look().equals(PlayerLook.defaults()), "aperçu modifié");
-        tap(g, Button.B);                         // annuler
+        click(g, c.anchor("close"));              // ✕ : annuler
         check(g.top() == w, "retour au monde");
         eq(PlayerLook.defaults(), g.save.look, "l'annulation ne change pas la sauvegarde");
 
         g.push(new CharacterCreatorScene(g, true));
-        for (int i = 0; i < 10; i++) g.simulateFrame();
-        tap(g, Button.DOWN);
+        CharacterCreatorScene c2 = (CharacterCreatorScene) g.top();
         tap(g, Button.RIGHT);
-        PlayerLook edited = ((CharacterCreatorScene) g.top()).look();
-        tap(g, Button.START);
-        tap(g, Button.A);
+        PlayerLook edited = c2.look();
+        click(g, c2.anchor("create"));            // « Enregistrer »
         check(g.top() == w, "validation → retour au monde");
         eq(edited, g.save.look, "la modification est sauvegardée");
     }
@@ -569,7 +610,7 @@ public final class SelfTest {
     private static void characterPersists() {
         Game g = freshGame();
         g.save.name = "Rayan";
-        g.save.look = new PlayerLook(1, 2, 7, 3, 1, 1, 6, 8);
+        g.save.look = new PlayerLook(1, 0xE0AC80, 0x9B5DE5, 0x111111, 0xF15BB5, PlayerLook.ORIGIN, 0x3A86FF, 0xFFD23F);
         g.save.store();
         Game again = new Game(data());
         check(again.save.hasCharacter(), "personnage relu");
