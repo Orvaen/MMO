@@ -32,8 +32,11 @@ public sealed interface BattleEvent {
     /** Le Pokémon est K.O. : il descend et disparaît. */
     record Faint(int side) implements BattleEvent {}
 
-    /** Un Pokémon entre en scène (lancer de Poké Ball). {@code index} : sa place dans l'équipe. */
-    record SendOut(int side, int index) implements BattleEvent {}
+    /**
+     * Un Pokémon entre en scène (lancer de Poké Ball). {@code index} : sa place dans l'équipe ;
+     * PV, niveau et statut <em>à ce moment-là</em> (pour l'affichage).
+     */
+    record SendOut(int side, int index, int hp, int maxHp, int level, int status) implements BattleEvent {}
 
     /** Un Pokémon rentre dans sa Poké Ball (changement). */
     record Withdraw(int side) implements BattleEvent {}
@@ -41,8 +44,8 @@ public sealed interface BattleEvent {
     /** La barre d'expérience du Pokémon n° {@code index} de l'équipe se remplit. */
     record Exp(int index, long expAfter) implements BattleEvent {}
 
-    /** Montée de niveau (bruitage + PV et stats mis à jour). */
-    record LevelUp(int index, int level) implements BattleEvent {}
+    /** Montée de niveau (fanfare) : nouveaux niveau, PV et PV max. */
+    record LevelUp(int index, int level, int hp, int maxHp) implements BattleEvent {}
 
     /** Le Pokémon veut apprendre une attaque mais en connaît déjà 4 : il faut choisir. */
     record LearnPrompt(int index, int move) implements BattleEvent {}

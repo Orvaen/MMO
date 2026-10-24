@@ -21,6 +21,7 @@ import java.util.List;
 final class OverworldScriptHost implements ScriptVM.Host {
 
     // Fonctions « special » de Rouge Feu / Vert Feuille (n° dans la table des fonctions spéciales du jeu)
+    private static final int SPECIAL_HEAL_PLAYER_PARTY = 0;           // le même dans tous les jeux Gen 3
     private static final int SPECIAL_CHANGE_NICKNAME_FRLG = 158;
     private static final int SPECIAL_FACING_FRLG_1 = 287, SPECIAL_FACING_FRLG_2 = 426;
     private static final int LOCALID_PLAYER = 0xFF;
@@ -142,13 +143,13 @@ final class OverworldScriptHost implements ScriptVM.Host {
     @Override
     public void trainerBattle(int trainerId, int introText, int defeatText) {
         world.battling = true;
-        game.push(new TrainerBattleScene(game, game.data.trainers().get(trainerId), defeatText));
+        game.push(BattleScene.trainer(game, game.data.trainers().get(trainerId), defeatText));
     }
 
     @Override
     public void wildBattle(int species, int level) {
         world.battling = true;
-        game.push(new BattleScene(game, species, Math.max(1, level)));
+        game.push(new BattleScene(game, species, Math.max(1, level), world.battleTerrain()));
     }
 
     @Override public boolean battleBusy() { return world.battling; }
@@ -170,6 +171,10 @@ final class OverworldScriptHost implements ScriptVM.Host {
 
     @Override
     public void special(int id, int arg) {
+        if (id == SPECIAL_HEAL_PLAYER_PARTY) {
+            dev.orvaen.mmo.battle.Party.healAll(game.data, game.save);       // Centre Pokémon, maman…
+            return;
+        }
         if (!fireRedLeafGreen()) return;
         if (id == SPECIAL_CHANGE_NICKNAME_FRLG) askNickname(arg);
     }

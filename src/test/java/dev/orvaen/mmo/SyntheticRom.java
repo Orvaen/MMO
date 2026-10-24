@@ -32,6 +32,15 @@ public final class SyntheticRom {
         return new SyntheticRom().make(false);
     }
 
+    /** Variante sans aucune image d'interface (écran titre, combat), pour essayer les vraies à la place. */
+    public static byte[] buildWithoutInterfaceGraphics() {
+        SyntheticRom r = new SyntheticRom();
+        r.battleGraphics = false;
+        return r.make(false);
+    }
+
+    private boolean battleGraphics = true;
+
     private byte[] make(boolean titleScreen) {
         ascii(0xA0, "POKEMON FIRE");
         ascii(0xAC, "BPRE");
@@ -381,6 +390,7 @@ public final class SyntheticRom {
         }
         ptr(GameProfile.PTR_BACK_SPRITES, backTable);
 
+        if (!battleGraphics) return;
         // Fonds de combat : 10 terrains identiques, lignes 0 à 13 = tuile 1 de couleur 1 (palette 2)
         java.io.ByteArrayOutputStream tb = new java.io.ByteArrayOutputStream();
         lzBlock(tb, solidTiles(2, 1));

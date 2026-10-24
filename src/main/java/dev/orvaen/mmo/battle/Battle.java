@@ -96,13 +96,13 @@ public final class Battle {
         Pokemon foe = sides[FOE].mon;
         if (trainer) {
             say(trainerName + " veut se battre !");
-            events.add(new BattleEvent.SendOut(FOE, 0));
+            events.add(sendOutEvent(FOE));
             say(trainerName + " envoie " + foe.name() + " !");
         } else {
-            events.add(new BattleEvent.SendOut(FOE, 0));
+            events.add(sendOutEvent(FOE));
             say("Un " + foe.name() + " sauvage apparaît !");
         }
-        events.add(new BattleEvent.SendOut(PLAYER, sides[PLAYER].index));
+        events.add(sendOutEvent(PLAYER));
         say("En avant ! " + sides[PLAYER].mon.name() + " !");
         return copy();
     }
@@ -269,7 +269,7 @@ public final class Battle {
     private void sendOutPlayer(int index) {
         sides[PLAYER].reset(playerTeam.get(index), index);
         participants.add(index);
-        events.add(new BattleEvent.SendOut(PLAYER, index));
+        events.add(sendOutEvent(PLAYER));
         say("En avant ! " + sides[PLAYER].mon.name() + " !");
     }
 
@@ -329,8 +329,8 @@ public final class Battle {
         if (!canAct(side)) return;
 
         if (slot >= 0) user.pp[slot] = Math.max(0, user.pp[slot] - 1);
-        events.add(new BattleEvent.MoveUsed(side, move));
         say(name(side) + " utilise " + move.name() + " !");
+        events.add(new BattleEvent.MoveUsed(side, move));
 
         if (move.effect() == Effects.TELEPORT && !trainer) {
             say(name(side) + " s'enfuit !");
@@ -752,7 +752,7 @@ public final class Battle {
             sides[FOE].reset(foeTeam.get(next), next);
             participants.clear();
             if (!sides[PLAYER].mon.fainted()) participants.add(sides[PLAYER].index);
-            events.add(new BattleEvent.SendOut(FOE, next));
+            events.add(sendOutEvent(FOE));
             say(trainerName + " envoie " + sides[FOE].mon.name() + " !");
             stop = true;
         }
@@ -792,7 +792,7 @@ public final class Battle {
             while (p.level < 100 && p.exp >= p.expForLevel(p.level + 1)) {
                 events.add(new BattleEvent.Exp(i, p.expForLevel(p.level + 1)));
                 p.levelUp();
-                events.add(new BattleEvent.LevelUp(i, p.level));
+                events.add(new BattleEvent.LevelUp(i, p.level, p.hp, p.maxHp()));
                 say(p.name() + " monte au N. " + p.level + " !");
                 for (int move : rules.movesLearnedAt(p.species, p.level)) {
                     if (p.learn(move)) {
@@ -804,6 +804,11 @@ public final class Battle {
             }
             events.add(new BattleEvent.Exp(i, p.exp));
         }
+    }
+
+    private BattleEvent sendOutEvent(int side) {
+        Battler b = sides[side];
+        return new BattleEvent.SendOut(side, b.index, b.mon.hp, b.mon.maxHp(), b.mon.level, b.mon.status);
     }
 
     private void finish(Outcome o) {

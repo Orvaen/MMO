@@ -136,15 +136,27 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   apparaissent selon la progression, cinématiques (le Professeur qui t'arrête à la sortie du bourg, te mène
   au labo…), mouvements scriptés, « ! » au-dessus des têtes, questions oui / non, Pokémon reçus, portes,
   fondus, drapeaux et variables sauvegardés. Nouvelle partie : accueil par le Professeur, puis (Rouge Feu /
-  Vert Feuille) réveil dans ta chambre. Les combats de dresseur sont provisoires (équipe lue dans la ROM,
-  comptés gagnés) en attendant le vrai système de combat
+  Vert Feuille) réveil dans ta chambre. Les combats de dresseur lancés par les scripts (le rival au labo…)
+  utilisent le vrai système de combat, et « soigner l'équipe » (maman, Centre Pokémon) fonctionne
 - **Musique et sons** : lecteur du moteur sonore des jeux GBA (MP2K / « Sappy ») écrit en Java — la table des
   morceaux, les pistes, les instruments (échantillons, canaux Game Boy carré / onde / bruit, percussions,
   partages de clavier) et les enveloppes sont lus dans ta ROM. Musique de chaque carte, écran titre, accueil du
   Professeur, combats, capture, fanfares et effets des scripts (playbgm, playse, playfanfare…), portes et
   escaliers. **F9** coupe / remet le son
-- **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
-- **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
+- **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement ; l'herbe haute
+  s'agite sous les pas (joueur et PNJ), avec l'animation de la ROM
+- **Combat** (règles de la 3e génération, données de ta ROM) :
+  - fond du terrain (herbe, hautes herbes, eau, grotte, bâtiment…), boîte de texte et menus, Poké Ball,
+    sprites de face et de dos, tous lus dans la ROM ; musiques de combat, de victoire et de capture, bruitages ;
+  - transition (flashs puis bandes noires), entrée en scène en silhouette, lancer de Poké Ball, élan des
+    attaques physiques, boule d'énergie des attaques spéciales, clignotement des coups, barres de PV et
+    d'EXP animées, K.O. ;
+  - menus **ATTAQUE / SAC / POKéMON / FUITE**, choix des attaques avec PP et type, changement de Pokémon ;
+  - attaques, PP, types et efficacités, coups critiques, même type ×1,5, précision et esquive, crans de
+    stats, statuts (sommeil, poison, brûlure, gel, paralysie, confusion, Vampigraine), priorité (Vive-Attaque) ;
+  - expérience, montée de niveau avec fanfare, nouvelles attaques (et choix de celle à oublier) ;
+  - capture avec la formule officielle (5 Poké Balls offertes au départ), fuite, combats de dresseur
+    (Pokémon suivant, argent gagné), défaite (équipe soignée, moitié de l'argent perdue)
 - **Fenêtres façon PokeMMO** : Pokédex (touche P) et carte de dresseur (touche C) s'ouvrent sans bloquer
   le jeu — on continue à marcher —, plusieurs à la fois, déplaçables, redimensionnables, place mémorisée ;
   Échap ferme celle de devant
@@ -168,6 +180,7 @@ src/main/java/dev/orvaen/mmo/
 ├── data/     Tout ce qui est extrait au démarrage (GameData) : espèces, rencontres, intro, écran titre
 ├── world/    Cartes : MapRepository, Tileset, MapLayout, warps, liaisons, PNJ, portes, MapRenderer
 ├── script/   Machine à scripts : rejoue les scripts de l'histoire écrits dans la ROM
+├── battle/   Combat : règles Gen 3 (Battle), Pokémon, équipe, données et images lues dans la ROM
 ├── audio/    Lecteur de musique GBA (moteur MP2K) en Java
 ├── player/   Sprites du joueur : localisation dans la ROM, masques par pièce, teinture
 ├── engine/   Fenêtre, boucle 60 i/s, entrées, fenêtres déplaçables, sauvegarde
@@ -184,7 +197,7 @@ Les formats sont documentés dans les classes, d'après la décompilation
 
 ## Tests
 
-`build.sh` / `build.bat` lancent `SelfTest` (46 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
+`build.sh` / `build.bat` lancent `SelfTest` (53 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
 fabriquée par `SyntheticRom` : un faux Rouge Feu minuscule (2 espèces, 2 cartes, données inventées)
 qui exerce toute la chaîne — pointeurs, LZ77, texte, tilesets, warps, liaisons, rencontres, rendu,
 déplacements, combat et création de personnage — sans aucune donnée Nintendo.
@@ -193,7 +206,7 @@ déplacements, combat et création de personnage — sans aucune donnée Nintend
 
 1. **Serveur en ligne** : serveur Java (sockets) qui synchronise positions, cartes et apparences des personnages
 2. PNJ et panneaux des cartes (sprites lus depuis la ROM) ; cosmétiques en calques (lunettes, nouveaux couvre-chefs…)
-3. Vrai système de combat : équipe, attaques, types, expérience (données d'attaques de la ROM)
+3. Combat : évolutions, objets du sac, PC, animations d'attaque propres à chaque attaque, cris
 4. Surf, pêche, rencontres d'eau ; musique et cris
 5. Émeraude complètement validé, puis Gen 4/5 (ROM NDS) comme PokeMMO
 

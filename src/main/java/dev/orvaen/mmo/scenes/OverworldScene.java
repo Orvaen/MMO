@@ -59,6 +59,7 @@ public final class OverworldScene implements Scene {
     final DoorAnimator doors = new DoorAnimator();
     final MapView view;
     final MessageBox box = new MessageBox();
+    private final GrassEffects grass;
     private final OverworldScriptHost host;
     private PlayerSprite avatar;
     private final Random rng = new Random();
@@ -95,6 +96,7 @@ public final class OverworldScene implements Scene {
         this.npcs = new NpcManager(game.data, game.save);
         this.view = new MapView(game.data);
         this.host = new OverworldScriptHost(this);
+        this.grass = new GrassEffects(game.data.fieldEffects());
         refreshAvatar();
         startNewGameIfNeeded();
         placePlayerAtStart();
@@ -166,6 +168,7 @@ public final class OverworldScene implements Scene {
         view.animateTiles(map);
         npcs.respawn(map);
         npcs.update(map, player, vm != null);
+        grass.update(map, player, npcs.all());
         player.tick();
         if (doorPhase == DoorPhase.NONE && doors.active()) {
             doors.update();                               // porte ouverte / fermée par un script
@@ -368,17 +371,28 @@ public final class OverworldScene implements Scene {
                 return;
             }
         }
-        // Rencontre sauvage dans les hautes herbes
-        if (map.isLandEncounterAt(px, py) && stepsSinceBattle > 3) {
+        // Rencontre sauvage dans les hautes herbes (il faut au moins un Pokémon dans l'équipe)
+        if (map.isLandEncounterAt(px, py) && stepsSinceBattle > 3 && !game.save.party.isEmpty()) {
             Optional<WildEncounters.Table> table = game.data.wild.land(map.group, map.num);
             if (table.isPresent() && rng.nextInt(2880) < table.get().rate() * 16) {
                 WildEncounters.Slot slot = table.get().roll(rng);
                 int level = slot.minLevel() + rng.nextInt(Math.max(1, slot.maxLevel() - slot.minLevel() + 1));
                 stepsSinceBattle = 0;
                 game.save.seen.add(slot.species());
-                game.fadeThen(() -> game.push(new BattleScene(game, slot.species(), level)));
+                game.push(new BattleScene(game, slot.species(), level, battleTerrain()));
             }
         }
+    }
+
+    /** Fond du combat selon la case du joueur : herbe, hautes herbes, eau, grotte, intérieur… */
+    int battleTerrain() {
+        int b = map.behaviorAt(player.x, player.y);
+        if (b == 0x03) return dev.orvaen.mmo.battle.BattleGraphics.LONG_GRASS;
+        if (b == BEHAVIOR_TALL_GRASS) return dev.orvaen.mmo.battle.BattleGraphics.GRASS;
+        if (b >= 0x10 && b <= 0x17) return dev.orvaen.mmo.battle.BattleGraphics.WATER;
+        if (map.mapType == GameMap.TYPE_UNDERGROUND) return dev.orvaen.mmo.battle.BattleGraphics.CAVE;
+        if (map.mapType == GameMap.TYPE_INDOOR) return dev.orvaen.mmo.battle.BattleGraphics.BUILDING;
+        return dev.orvaen.mmo.battle.BattleGraphics.PLAIN;
     }
 
     private static boolean isArrowWarp(int behavior) {
@@ -513,6 +527,7 @@ public final class OverworldScene implements Scene {
     private void mapLoaded() {
         MapScripts.clearTemporary(game.save);
         npcs.forgetScriptChanges();
+        grass.clear();
         if (map.layout.reset()) view.forget(map);        // métatiles changés par un script : on redessine
         runMapScript(MapScripts.ON_LOAD);
         runMapScript(MapScripts.ON_TRANSITION);
@@ -644,6 +659,9 @@ public final class OverworldScene implements Scene {
     public Direction facing() { return player.facing; }
     public boolean playerHidden() { return player.hidden; }
 
+    /** Nombre d'herbes hautes en train de s'agiter — pour les tests. */
+    public int rustlingGrass() { return grass.count(); }
+
     /** Image de porte affichée (-1 : aucune animation en cours) — pour les tests. */
     public int doorStage() { return doors.stage(); }
 
@@ -711,6 +729,7 @@ public final class OverworldScene implements Scene {
                 && map.behaviorAt(player.x, player.y) == BEHAVIOR_TALL_GRASS;
         player.draw(g, avatar, originX, originY, zoom, interp, view.render(map).below(), tallGrass);
         for (Npc n : npcs.all()) if (n.exactY(interp) > playerY) OverworldHud.drawNpc(g, n, originX, originY, zoom, interp);
+        grass.draw(g, originX, originY, zoom);                   // l'herbe haute agitée cache les pieds
 
         // Toits et cimes des arbres, par-dessus les personnages
         Graphics2D world = (Graphics2D) g.create();

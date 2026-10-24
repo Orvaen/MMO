@@ -28,6 +28,7 @@ src/main/java/dev/orvaen/mmo/
 ├── data/       Tout ce qu'on extrait au démarrage (GameData) : espèces, rencontres, écran titre…
 ├── world/      Les cartes : dalles, collisions, warps, PNJ, panneaux, portes, tuiles animées
 ├── script/     La machine à scripts : rejoue les scripts de l'histoire écrits dans la ROM
+├── battle/     Le combat : règles (Battle), Pokémon, équipe, données et images lues dans la ROM
 ├── audio/      Le lecteur de musique de la GBA (moteur « MP2K »), en Java
 ├── player/     Les sprites du héros et leur teinture (création de personnage)
 ├── engine/     La fenêtre, la boucle 60 images/s, le clavier, la sauvegarde, les fenêtres
@@ -104,6 +105,7 @@ Le son tourne à part, dans son propre fil d'exécution (`audio/AudioEngine`).
 | `MapScripts` | trouver les scripts d'une carte (à l'arrivée, à chaque image…) |
 | `OverworldScriptHost` | ce que les scripts peuvent faire : parler, faire marcher, ouvrir une porte, lancer un combat… |
 | `OverworldHud` | les petits dessins : bulles « ! », nom de la zone, portrait de Pokémon |
+| `GrassEffects` | l'herbe haute qui s'agite quand on y entre (images de la ROM) |
 | `MessageBox` | la boîte de dialogue en bas, avec la flèche vers celui qui parle |
 
 **Une image du monde** (`OverworldScene.update`) :
@@ -132,7 +134,27 @@ La progression est gardée dans la sauvegarde sous forme de **drapeaux** (vrai /
 
 ---
 
-## 8. Où changer quoi ?
+## 8. Le combat
+
+Le combat est séparé en deux, pour qu'on puisse le comprendre (et le tester) morceau par morceau :
+
+| Classe | Rôle |
+| --- | --- |
+| `battle/Battle` | les **règles** : qui attaque en premier, dégâts, types, statuts, expérience, capture… sans aucun dessin |
+| `battle/BattleEvent` | ce qui s'est passé pendant un tour (message, dégâts, K.O., montée de niveau…) |
+| `battle/Pokemon`, `battle/Party` | un Pokémon (stats, PV, attaques) et l'équipe enregistrée dans la sauvegarde |
+| `battle/BattleData` | attaques, apprentissages, table des types, courbes d'expérience lues dans la ROM |
+| `battle/BattleGraphics` | fonds de combat, boîte de texte, Poké Ball lus dans la ROM |
+| `scenes/BattleScene` | l'**écran** : menus, puis il rejoue les `BattleEvent` un par un avec les animations |
+| `scenes/BattleHud` | dessin des cadres de PV, des barres et du texte |
+
+Un tour : le joueur choisit dans le menu → `BattleScene` appelle par exemple `battle.useMove(0)` → le moteur
+calcule tout le tour et renvoie la liste des événements → l'écran les joue (« X utilise CHARGE ! », élan,
+clignotement, la barre de PV descend…) → retour au menu.
+
+---
+
+## 9. Où changer quoi ?
 
 | Je veux… | Fichier |
 | --- | --- |
@@ -145,10 +167,12 @@ La progression est gardée dans la sauvegarde sous forme de **drapeaux** (vrai /
 | ajouter une donnée lue dans la ROM | une classe dans `data/` ou `world/`, créée dans `GameData` |
 | ajouter une musique | `audio/Songs` (n° des morceaux) puis `game.data.audio.playBgm(n°)` |
 | changer ce qui est sauvegardé | `engine/Storage` |
+| changer une règle de combat (dégâts, capture…) | `battle/Battle` |
+| changer l'apparence du combat | `scenes/BattleScene`, `scenes/BattleHud` |
 
 ---
 
-## 9. Les tests
+## 10. Les tests
 
 Les tests (`src/test/java/.../SelfTest.java`) tournent sur une **ROM inventée** fabriquée par
 `SyntheticRom` : un faux Rouge Feu minuscule, sans aucune donnée Nintendo. Chaque nouvelle lecture
@@ -162,7 +186,7 @@ Un test qui échoue affiche ✘ avec la raison. Tous doivent passer avant d'envo
 
 ---
 
-## 10. Conventions
+## 11. Conventions
 
 - Le code et les commentaires sont **en français**.
 - Une classe = un rôle. Si une classe dépasse ~600 lignes, on la découpe.

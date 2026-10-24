@@ -92,6 +92,7 @@ public final class SelfTest {
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
+        test("Combat : écran complet contre un dresseur jusqu'à la victoire", SelfTest::trainerBattleScene);
         test("Moteur : rendu d'une frame et du Pokédex", SelfTest::frames);
         test("Personnage : apparence, encodage et valeurs hors bornes", SelfTest::lookEncoding);
         test("Sprites du joueur : localisés dans la ROM (marche, face, dos)", SelfTest::playerGraphicsFound);
@@ -915,6 +916,7 @@ public final class SelfTest {
 
     private static void encounter() {
         Game g = game();
+        g.save.party.add(new int[]{1, 30});                 // il faut un Pokémon pour croiser des sauvages
         OverworldScene w = world(g);
         w.setRandomSeed(1234);
         boolean met = false;
@@ -923,18 +925,58 @@ public final class SelfTest {
             met = g.top() instanceof BattleScene;
         }
         check(met, "aucune rencontre après 40 allers-retours dans l'herbe");
+        check(w.rustlingGrass() > 0, "l'herbe haute s'agite sous les pas du joueur");
         check(!g.save.seen.isEmpty(), "l'espèce rencontrée est marquée « vue »");
-        for (int i = 0; i < 40; i++) g.simulateFrame(); // fin de l'intro
+        BattleScene battle = (BattleScene) g.top();
+        // Transition, entrée en scène, messages : A jusqu'au menu d'action
+        for (int i = 0; i < 900 && !battle.waitingForAction(); i++) {
+            g.input().set(Button.A, i % 2 == 0);
+            g.simulateFrame();
+        }
+        g.input().set(Button.A, false);
+        check(battle.waitingForAction(), "menu ATTAQUE / SAC / POKéMON / FUITE affiché");
         BufferedImage frame = g.renderFrame();
-        check(frame.getRGB(160, 20) != 0xFF000000, "l'écran de combat est dessiné");
+        check(frame.getRGB(10, 10) == GbaGfx.bgr555ToArgb(SyntheticRom.TERRAIN_COLOR), "fond de combat de la ROM");
+        check(frame.getRGB(200, 130) == GbaGfx.bgr555ToArgb(SyntheticRom.MENU_COLOR), "menu d'action de la ROM");
 
-        // Intro → menu → descendre sur FUIR → valider → texte de fuite → retour au monde
-        hold(g, Button.A, 2);
+        // FUITE (en bas à droite) → message → retour au monde
+        hold(g, Button.RIGHT, 2);
         hold(g, Button.DOWN, 2);
         hold(g, Button.A, 2);
-        hold(g, Button.A, 2);
-        for (int i = 0; i < 60; i++) g.simulateFrame();
+        for (int i = 0; i < 400 && !(g.top() instanceof OverworldScene); i++) {
+            g.input().set(Button.A, i % 2 == 0);
+            g.simulateFrame();
+        }
+        g.input().set(Button.A, false);
         check(g.top() instanceof OverworldScene, "retour au monde après la fuite");
+        eq(1, g.save.party.size(), "l'équipe est toujours là");
+        eq(20, g.save.party.get(0).length, "équipe enregistrée au format complet");
+    }
+
+    /** Combat complet contre un dresseur : attaques jusqu'à la victoire, puis retour au monde. */
+    private static void trainerBattleScene() {
+        Game g = game();
+        g.save.party.add(new int[]{1, 60});
+        OverworldScene w = world(g);
+        var trainer = new dev.orvaen.mmo.script.Trainers.Trainer(1, "BLUE", 0, List.of(new int[]{2, 3, 0, 0, 0, 0, 0}));
+        BattleScene b = BattleScene.trainer(g, trainer, -1);
+        g.push(b);
+        int money = g.save.money;
+        for (int i = 0; i < 3000 && g.top() == b; i++) {
+            if (b.waitingForAction()) {
+                b.selectAction(0);
+                hold(g, Button.A, 2);                         // ATTAQUE
+                hold(g, Button.A, 2);                         // 1re attaque
+                continue;
+            }
+            g.input().set(Button.A, i % 2 == 0);
+            g.simulateFrame();
+        }
+        g.input().set(Button.A, false);
+        check(g.top() == w, "retour au monde après le combat");
+        check(g.save.money > money, "argent gagné contre le dresseur");
+        var team = dev.orvaen.mmo.battle.Party.load(g.data, g.save);
+        check(team.get(0).exp > team.get(0).expForLevel(60), "expérience gagnée et sauvegardée");
     }
 
     private static void frames() {
