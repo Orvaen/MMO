@@ -19,8 +19,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Bulle de dialogue (texte d'un PNJ ou d'un panneau) : posée au-dessus de celui qui parle, avec une
- * pointe dirigée vers lui ; sans orateur (message système), boîte en bas de l'écran.
+ * Boîte de dialogue large en bas de l'écran (comme PokeMMO). Quand un PNJ ou un panneau parle, une pointe
+ * part du haut de la boîte vers lui et une flèche rebondit au-dessus de sa tête.
  * Le texte s'écrit lettre par lettre ; A, B ou un clic l'affiche en entier, puis passe à la page suivante.
  */
 public final class DialogueScene implements Scene {
@@ -100,47 +100,32 @@ public final class DialogueScene implements Scene {
         Speaker who = speaker == null ? null : speaker.get();
 
         // Taille : bulle ajustée au texte (page entière, pour qu'elle ne grandisse pas en cours d'écriture)
-        double maxText = who == null ? Math.min(w - 32, 760 * s) - 56 * s : Math.min(w - 32 - 56 * s, 470 * s);
-        List<String> full = wrap(pages.get(page), fm, maxText);
-        double textW = 0;
-        for (String l : full) textW = Math.max(textW, fm.stringWidth(l));
-        double bw = who == null ? Math.min(w - 32, 760 * s) : Math.max(200 * s, textW + 78 * s);
-        double bh = Math.max(who == null ? 2 : 1, full.size()) * fm.getHeight() * 1.15 + 40 * s;
-        double tail = 13 * s;
-        double x, y, tipX = 0, tipY = 0;
-        boolean tailDown = true;
-        if (who == null) {
-            x = (w - bw) / 2;
-            y = h - bh - 22 * s;
-        } else {
-            Rectangle2D r = who.bounds();
-            tipX = r.getCenterX();
-            double above = r.getMinY() - 6 * s - tail - bh, below = r.getMaxY() + 6 * s + tail;
-            tailDown = !who.below() && above >= 10 || below + bh > h - 10;
-            y = tailDown ? Math.max(10, above) : below;
-            tipY = tailDown ? r.getMinY() - 6 * s : r.getMaxY() + 6 * s;
-            x = Math.max(12, Math.min(w - 12 - bw, tipX - bw / 2));
-        }
+        // Boîte large en bas de l'écran (comme PokeMMO) ; si quelqu'un parle, une pointe sur le bord
+        // supérieur part vers lui et une flèche rebondit au-dessus de sa tête.
+        double bw = Math.min(w - 32, 760 * s);
+        List<String> full = wrap(pages.get(page), fm, bw - 56 * s);
+        double bh = Math.max(2, full.size()) * fm.getHeight() * 1.15 + 40 * s;
+        double x = (w - bw) / 2, y = h - bh - 22 * s;
+        Rectangle2D r = who == null ? null : who.bounds();
 
-        // Apparition : petite mise à l'échelle depuis la pointe
+        if (r != null) drawMarker(g, s, r);
+
+        // Apparition : la boîte monte légèrement en fondu
         double pop = Math.min(1, frame / 7.0);
-        double grow = 0.86 + 0.14 * (1 - Math.pow(1 - pop, 3));
         java.awt.geom.AffineTransform saved = g.getTransform();
-        double ox = who == null ? x + bw / 2 : tipX, oy = who == null ? y + bh : tipY;
-        g.translate(ox, oy);
-        g.scale(grow, grow);
-        g.translate(-ox, -oy);
+        g.translate(0, (1 - (1 - Math.pow(1 - pop, 3))) * 14 * s);
         java.awt.Composite savedComposite = g.getComposite();
         g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) Math.min(1, pop * 1.4)));
 
         Area shape = new Area(new RoundRectangle2D.Double(x, y, bw, bh, 14 * s, 14 * s));
-        if (who != null) {
-            double tx = Math.max(x + 18 * s, Math.min(x + bw - 18 * s, tipX));
+        if (r != null) {
+            double target = r.getCenterX();
+            double tx = Math.max(x + 34 * s, Math.min(x + bw - 34 * s, target));
+            double lean = Math.max(-14 * s, Math.min(14 * s, (target - tx) * 0.35));
             Path2D t = new Path2D.Double();
-            double edge = tailDown ? y + bh - 1 : y + 1;
-            t.moveTo(tx - 10 * s, edge);
-            t.lineTo(tx + 10 * s, edge);
-            t.lineTo(tipX, tipY);
+            t.moveTo(tx - 13 * s, y + 1);
+            t.lineTo(tx + 13 * s, y + 1);
+            t.lineTo(tx + lean, y - 17 * s);
             t.closePath();
             shape.add(new Area(t));
         }
@@ -176,6 +161,24 @@ public final class DialogueScene implements Scene {
         }
         g.setComposite(savedComposite);
         g.setTransform(saved);
+    }
+
+    /** Flèche qui rebondit au-dessus de celui qui parle. */
+    private void drawMarker(Graphics2D g, double s, Rectangle2D r) {
+        double bounce = Math.abs(Math.sin(frame * 0.12)) * 5 * s;
+        double cx = r.getCenterX(), tip = r.getMinY() - 4 * s - bounce, a = 12 * s;
+        Path2D m = new Path2D.Double();
+        m.moveTo(cx - a, tip - a * 1.2);
+        m.lineTo(cx + a, tip - a * 1.2);
+        m.lineTo(cx, tip);
+        m.closePath();
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fill(java.awt.geom.AffineTransform.getTranslateInstance(0, 2 * s).createTransformedShape(m));
+        g.setColor(HiUi.ACCENT);
+        g.fill(m);
+        g.setColor(Color.WHITE);
+        g.setStroke(new java.awt.BasicStroke((float) (1.5 * s), java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+        g.draw(m);
     }
 
     /** Lignes du jeu (retours à la ligne d'origine), recoupées si elles dépassent la boîte. */
