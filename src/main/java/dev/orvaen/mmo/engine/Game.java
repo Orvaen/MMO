@@ -179,10 +179,14 @@ public final class Game {
         running = false;
     }
 
-    /** Zoom du monde : réglé par le joueur, ou automatique selon la hauteur de la fenêtre. */
+    /**
+     * Zoom du monde : réglé par le joueur (+ / -), ou automatique selon la hauteur de la fenêtre.
+     * En automatique on vise ~15 cases de haut (la GBA en montre 10, PokeMMO un peu plus) : les
+     * personnages restent bien visibles (avant : ~21 cases, tout paraissait minuscule).
+     */
     public int zoom() {
         if (zoomSetting > 0) return zoomSetting;
-        return Math.max(2, Math.min(6, (int) Math.round(viewHeight / 360.0)));
+        return Math.max(2, Math.min(8, (int) Math.round(viewHeight / 256.0)));
     }
 
     /** Zoom suivant / précédent (touches + et -, Ctrl + molette), mémorisé. */

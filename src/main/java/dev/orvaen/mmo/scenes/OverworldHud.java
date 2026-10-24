@@ -41,10 +41,6 @@ final class OverworldHud {
         q.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         q.translate(Math.round(originX + wx * zoom), Math.round(originY + wy * zoom));
         q.scale(zoom, zoom);
-        if (n.height() >= 32) {                       // petite ombre sous les pieds
-            q.setColor(new Color(0, 0, 0, 60));
-            q.fillOval((n.width() - 10) / 2, n.height() - 4, 10, 4);
-        }
         q.drawImage(img, 0, (int) -Math.round(lift), null);
         q.dispose();
     }

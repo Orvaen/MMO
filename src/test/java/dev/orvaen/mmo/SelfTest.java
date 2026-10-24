@@ -1088,12 +1088,12 @@ public final class SelfTest {
         check(g.screenWidth() > Game.WIDTH, "le monde voit plus large que la GBA : " + g.screenWidth());
         // Le joueur est au centre ; à gauche du centre on doit voir de l'herbe bleue (ligne 2)
         eq(0xFF0000FF, img.getRGB(g.screenWidth() / 2 - 8 - 12, g.screenHeight() / 2 - 8 + 2), "herbe visible à gauche du joueur");
-        // Zoom : 960x640 en automatique → x2 ; « + » rapproche, l'écran virtuel rétrécit
-        eq(2, g.zoom(), "zoom automatique pour 960x640");
+        // Zoom : 960x640 en automatique → x3 ; « + » rapproche, l'écran virtuel rétrécit
+        eq(3, g.zoom(), "zoom automatique pour 960x640 (~13 cases de haut)");
         int before = g.screenWidth();
         g.input().addZoom(1);
         g.simulateFrame();
-        eq(3, g.zoom(), "zoom +1");
+        eq(4, g.zoom(), "zoom +1");
         check(g.screenWidth() < before, "zoomer montre moins de carte");
         g.input().addZoom(-1);
         g.simulateFrame();

@@ -58,9 +58,6 @@ public final class Avatar {
     public void draw(Graphics2D g, int x, int y, Direction facing, int step, int hop) {
         int t = y - 4 - hop;
 
-        g.setColor(SHADOW);
-        g.fillOval(x + 3, y + 12, 10, 4);
-
         // Cheveux longs derrière la tête (vue de face ou de profil)
         if (longHair() && facing != Direction.UP) {
             g.setColor(hair.darker());

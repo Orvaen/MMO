@@ -52,8 +52,6 @@ public final class PlayerSprite {
             fallback.draw(g, x, y, facing, step, hop);
             return;
         }
-        g.setColor(new java.awt.Color(0, 0, 0, 60));
-        g.fillOval(x + 3, y + 12, 10, 4);
         BufferedImage img = overworldFrame(facing, step, running);
         // En course, les frames de foulée ont la tête 1 px plus bas que la frame d'appui : à l'écran
         // agrandi, ce rebond fait « sauter » le personnage. On garde la tête à hauteur constante.
