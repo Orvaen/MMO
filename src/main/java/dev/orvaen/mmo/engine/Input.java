@@ -26,6 +26,7 @@ public final class Input extends KeyAdapter {
     private int mouseX = -1, mouseY = -1;
     private boolean mouseDown, mousePressed, mouseReleased;
     private int wheel;
+    private int liveZoom, zoomSteps;
     private final MouseAdapter mouse = new MouseAdapter() {
         @Override
         public void mouseMoved(MouseEvent e) {
@@ -54,7 +55,8 @@ public final class Input extends KeyAdapter {
 
         @Override
         public void mouseWheelMoved(MouseWheelEvent e) {
-            addWheel(e.getWheelRotation());
+            if (e.isControlDown()) addZoom(-e.getWheelRotation()); // Ctrl + molette : zoom du monde
+            else addWheel(e.getWheelRotation());
         }
     };
 
@@ -84,6 +86,11 @@ public final class Input extends KeyAdapter {
 
     @Override
     public synchronized void keyPressed(KeyEvent e) {
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_ADD, KeyEvent.VK_PLUS, KeyEvent.VK_EQUALS -> liveZoom++;
+            case KeyEvent.VK_SUBTRACT, KeyEvent.VK_MINUS -> liveZoom--;
+            default -> { }
+        }
         Button b = map(e.getKeyCode());
         if (b != null) live.put(b, true);
     }
@@ -121,6 +128,8 @@ public final class Input extends KeyAdapter {
         mouseReleased = liveReleases > 0;
         mouseDown = liveMouseDown || mousePressed;
         wheel = liveWheel;
+        zoomSteps = liveZoom;
+        liveZoom = 0;
         livePresses = 0;
         liveReleases = 0;
         liveWheel = 0;
@@ -170,6 +179,14 @@ public final class Input extends KeyAdapter {
     public synchronized void addWheel(int notches) {
         liveWheel += notches;
     }
+
+    /** Pas de zoom demandés (tests, touches + et -). */
+    public synchronized void addZoom(int steps) {
+        liveZoom += steps;
+    }
+
+    /** Pas de zoom demandés pendant cette frame (+ : rapprocher). */
+    public int zoomSteps() { return zoomSteps; }
 
     public int mouseX() { return mouseX; }
     public int mouseY() { return mouseY; }

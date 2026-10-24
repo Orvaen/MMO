@@ -30,7 +30,9 @@ public final class Game {
     public final Storage.Save save;
     private final Input input = new Input();
     private final Deque<Scene> scenes = new ArrayDeque<>();
-    private final BufferedImage screen = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+    private BufferedImage screen = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+    private boolean screenFills;
+    private int zoomSetting = Storage.zoom(); // 0 = automatique
     private int viewWidth = WIDTH * 4;
     private int viewHeight = HEIGHT * 4;
     private JFrame frame;
@@ -102,6 +104,28 @@ public final class Game {
     /** Ferme le jeu proprement (sauvegarde comprise) à la fin de la frame. */
     public void quit() {
         running = false;
+    }
+
+    /** Zoom du monde : réglé par le joueur, ou automatique selon la hauteur de la fenêtre. */
+    public int zoom() {
+        if (zoomSetting > 0) return zoomSetting;
+        return Math.max(2, Math.min(6, (int) Math.round(viewHeight / 360.0)));
+    }
+
+    /** Zoom suivant / précédent (touches + et -, Ctrl + molette), mémorisé. */
+    public void adjustZoom(int delta) {
+        int z = Math.max(1, Math.min(8, zoom() + delta));
+        zoomSetting = z;
+        Storage.setZoom(z);
+    }
+
+    /** Taille de l'écran virtuel où dessinent les scènes (240x160, ou plus grand pour le monde). */
+    public int screenWidth() {
+        return screen.getWidth();
+    }
+
+    public int screenHeight() {
+        return screen.getHeight();
     }
 
     /** Taille de la fenêtre de jeu en pixels (interface haute résolution, souris). */
@@ -196,6 +220,8 @@ public final class Game {
 
     private void tick() {
         input.poll();
+        if (input.zoomSteps() != 0) adjustZoom(input.zoomSteps());
+        sizeScreen();
         if (fadeDir != 0) {
             fade += fadeDir * 0.1f;
             if (fade >= 1f) {
@@ -234,8 +260,8 @@ public final class Game {
     private void composite(Graphics2D out, int cw, int ch) {
         out.setColor(Color.BLACK);
         out.fillRect(0, 0, cw, ch);
-        int scale = Math.max(1, Math.min(cw / WIDTH, ch / HEIGHT));
-        int w = WIDTH * scale, h = HEIGHT * scale;
+        int scale = screenFills ? zoom() : Math.max(1, Math.min(cw / WIDTH, ch / HEIGHT));
+        int w = screen.getWidth() * scale, h = screen.getHeight() * scale;
         out.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         out.drawImage(screen, (cw - w) / 2, (ch - h) / 2, w, h, null);
 
@@ -262,11 +288,27 @@ public final class Game {
         return visible;
     }
 
+    /** Écran virtuel à la bonne taille : celle de la fenêtre / zoom pour le monde, 240x160 sinon. */
+    private void sizeScreen() {
+        List<Scene> visible = visibleScenes();
+        screenFills = !visible.isEmpty() && visible.get(0).fillsWindow();
+        int w = WIDTH, h = HEIGHT;
+        if (screenFills) {
+            int z = zoom();
+            w = Math.max(WIDTH, (viewWidth + z - 1) / z);
+            h = Math.max(HEIGHT, (viewHeight + z - 1) / z);
+        }
+        if (screen.getWidth() != w || screen.getHeight() != h) {
+            screen = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        }
+    }
+
     private void drawScreen() {
+        sizeScreen();
         Graphics2D g = screen.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
         g.setColor(Color.BLACK);
-        g.fillRect(0, 0, WIDTH, HEIGHT);
+        g.fillRect(0, 0, screen.getWidth(), screen.getHeight());
 
         // On dessine depuis la dernière scène opaque jusqu'au sommet de la pile.
         for (Scene s : visibleScenes()) {

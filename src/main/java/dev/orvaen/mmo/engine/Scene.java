@@ -16,6 +16,14 @@ public interface Scene {
      */
     default void renderHiRes(Graphics2D g, int width, int height) {}
 
+    /**
+     * Vrai : la scène remplit toute la fenêtre (le monde) ; son écran virtuel fait la taille de la
+     * fenêtre divisée par le zoom. Faux : écran classique 240x160 agrandi au mieux.
+     */
+    default boolean fillsWindow() {
+        return false;
+    }
+
     /** Les scènes en dessous restent-elles dessinées (menus en surimpression) ? */
     default boolean isOverlay() {
         return false;

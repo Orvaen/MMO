@@ -52,7 +52,7 @@ public final class StartMenuScene implements Scene {
 
     @Override
     public void render(Graphics2D g) {
-        int w = 84, x = Game.WIDTH - w - 2, top = 16;
+        int w = 84, x = game.screenWidth() - w - 2, top = 16;
         Ui.box(g, x, 2, w, 30 + ITEMS.length * 16);
         g.setFont(Ui.SMALL);
         Ui.text(g, game.save.name == null ? "" : game.save.name, x + 10, 15, Ui.FRAME);

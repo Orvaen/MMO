@@ -360,9 +360,22 @@ public final class SelfTest {
     private static void frames() {
         Game g = game();
         BufferedImage img = g.renderFrame();
-        eq(Game.WIDTH, img.getWidth(), "largeur écran");
+        eq(g.screenWidth(), img.getWidth(), "largeur écran");
+        check(g.screenWidth() > Game.WIDTH, "le monde voit plus large que la GBA : " + g.screenWidth());
         // Le joueur est au centre ; à gauche du centre on doit voir de l'herbe bleue (ligne 2)
-        eq(0xFF0000FF, img.getRGB(Game.WIDTH / 2 - 8 - 12, Game.HEIGHT / 2 - 8 + 2), "herbe visible à gauche du joueur");
+        eq(0xFF0000FF, img.getRGB(g.screenWidth() / 2 - 8 - 12, g.screenHeight() / 2 - 8 + 2), "herbe visible à gauche du joueur");
+        // Zoom : 960x640 en automatique → x2 ; « + » rapproche, l'écran virtuel rétrécit
+        eq(2, g.zoom(), "zoom automatique pour 960x640");
+        int before = g.screenWidth();
+        g.input().addZoom(1);
+        g.simulateFrame();
+        eq(3, g.zoom(), "zoom +1");
+        check(g.screenWidth() < before, "zoomer montre moins de carte");
+        g.input().addZoom(-1);
+        g.simulateFrame();
+        BufferedImage window = g.renderWindow(1920, 1080);
+        check(window.getRGB(5, 540) != 0xFF000000 && window.getRGB(1914, 540) != 0xFF000000,
+                "le monde remplit la fenêtre jusqu'aux bords (pas de bandes noires)");
         g.push(new DexScene(g));
         BufferedImage dex = g.renderFrame();
         check(dex.getRGB(5, 5) != 0xFF000000, "Pokédex dessiné");

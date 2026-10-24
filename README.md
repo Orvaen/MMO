@@ -61,6 +61,7 @@ Le dossier `export/` est ignoré par git.
 | Retour / courir (B) | Échap, Maj, L |
 | Menu (Pokédex, personnage, cartes, sauvegarde) | X |
 | Liste de toutes les cartes (téléportation, outil de dev) | M |
+| Zoom du monde (mémorisé) | + / - , ou Ctrl + molette |
 | Page précédente / suivante dans les listes | A / E, Page↑ / Page↓ |
 
 ## Écran d'accueil

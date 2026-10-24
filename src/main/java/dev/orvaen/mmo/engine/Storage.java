@@ -44,6 +44,21 @@ public final class Storage {
         write(CONFIG, p, "Configuration du moteur");
     }
 
+    /** Zoom du monde choisi par le joueur (0 = automatique). */
+    public static int zoom() {
+        try {
+            return Integer.parseInt(read(CONFIG).getProperty("view.zoom", "0").trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public static void setZoom(int zoom) {
+        Properties p = read(CONFIG);
+        p.setProperty("view.zoom", String.valueOf(zoom));
+        write(CONFIG, p, "Configuration du moteur");
+    }
+
     /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
     public static RomCheck.Slot lastSlot() {
         String v = read(CONFIG).getProperty("rom.last", "");

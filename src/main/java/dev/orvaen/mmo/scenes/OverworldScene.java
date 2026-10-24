@@ -24,8 +24,6 @@ import java.util.Random;
 public final class OverworldScene implements Scene {
 
     private static final int T = MapRenderer.TILE;
-    private static final int PLAYER_SCREEN_X = Game.WIDTH / 2 - T / 2;
-    private static final int PLAYER_SCREEN_Y = Game.HEIGHT / 2 - T / 2;
     private static final int BEHAVIOR_DOOR = 0x69;
     private static final int TURN_DELAY = 5;
     private static final int POPUP_FRAMES = 150;
@@ -91,6 +89,12 @@ public final class OverworldScene implements Scene {
     }
 
     // ------------------------------------------------------------------ logique
+
+    /** Le monde remplit toute la fenêtre : on voit plus de carte au lieu d'agrandir davantage. */
+    @Override
+    public boolean fillsWindow() {
+        return true;
+    }
 
     @Override
     public void update(Input in) {
@@ -409,17 +413,21 @@ public final class OverworldScene implements Scene {
         int offset = moving ? progress : 0;
         int playerPx = px * T + facing.dx * offset;
         int playerPy = py * T + facing.dy * offset;
-        int camX = playerPx - PLAYER_SCREEN_X;
-        int camY = playerPy - PLAYER_SCREEN_Y;
+        int sw = game.screenWidth(), sh = game.screenHeight();
+        int screenX = sw / 2 - T / 2, screenY = sh / 2 - T / 2;
+        int camX = playerPx - screenX;
+        int camY = playerPy - screenY;
 
         MapRenderer.Rendered current = render(map);
 
         // 1. Bordure répétée là où il n'y a ni la carte, ni une carte liée
         int firstTx = Math.floorDiv(camX, T), firstTy = Math.floorDiv(camY, T);
-        int lastTx = Math.floorDiv(camX + Game.WIDTH, T), lastTy = Math.floorDiv(camY + Game.HEIGHT, T);
+        int lastTx = Math.floorDiv(camX + sw, T), lastTy = Math.floorDiv(camY + sh, T);
         MapLayout layout = map.layout;
         for (int ty = firstTy; ty <= lastTy; ty++) {
             for (int tx = firstTx; tx <= lastTx; tx++) {
+                // En intérieur, le vide autour de la pièce reste noir (comme PokeMMO) : pas de bordure répétée
+                if (map.mapType == GameMap.TYPE_INDOOR) break;
                 if (layout.inBounds(tx, ty) || locate(tx, ty) != null || current.borderBelow().length == 0) continue;
                 int i = Math.floorMod(ty, layout.borderHeight) * layout.borderWidth + Math.floorMod(tx, layout.borderWidth);
                 if (i < current.borderBelow().length) {
@@ -443,7 +451,7 @@ public final class OverworldScene implements Scene {
         if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * progress / distance) * 10);
         int step = 0;
         if (moving && distance == T && progress > 2 && progress < 14) step = stepLeftFoot ? 1 : 2;
-        int sx = PLAYER_SCREEN_X, sy = PLAYER_SCREEN_Y;
+        int sx = screenX, sy = screenY;
         avatar.drawOverworld(g, sx, sy, facing, step, hop);
 
         // Herbe haute : le bas de la case repasse devant les jambes
@@ -477,12 +485,14 @@ public final class OverworldScene implements Scene {
         }
         if (messageTimer > 0 && message != null) {
             g.setFont(Ui.FONT);
-            Ui.box(g, 4, Game.HEIGHT - 44, Game.WIDTH - 8, 40);
-            int y = Game.HEIGHT - 28;
-            for (String line : Ui.wrap(g, message, Game.WIDTH - 28)) {
-                Ui.text(g, line, 14, y);
+            int sw = game.screenWidth(), sh = game.screenHeight();
+            int bw = Math.min(sw - 8, 320), bx = (sw - bw) / 2;
+            Ui.box(g, bx, sh - 44, bw, 40);
+            int y = sh - 28;
+            for (String line : Ui.wrap(g, message, bw - 20)) {
+                Ui.text(g, line, bx + 10, y);
                 y += 13;
-                if (y > Game.HEIGHT - 6) break;
+                if (y > sh - 6) break;
             }
         }
     }
