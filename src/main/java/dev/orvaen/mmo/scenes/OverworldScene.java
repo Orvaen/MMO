@@ -132,7 +132,7 @@ public final class OverworldScene implements Scene {
         if (popupTimer > 0) popupTimer--;
         if (messageTimer > 0) messageTimer--;
         animateTiles();
-        for (Npc n : npcs) n.update(this::npcCanEnter, n == talking);
+        for (Npc n : npcs) n.update((x, y) -> npcCanEnter(n, x, y), n == talking);
 
         if (doorPhase != DoorPhase.NONE) {
             updateDoor();
@@ -467,9 +467,20 @@ public final class OverworldScene implements Scene {
         return null;
     }
 
-    /** Un PNJ peut-il marcher sur cette case ? (carte, joueur, autres PNJ, warps) */
-    private boolean npcCanEnter(int x, int y) {
-        if (!map.layout.inBounds(x, y) || MapLayout.collision(map.layout.blockAt(x, y)) != 0) return false;
+    /**
+     * Un PNJ peut-il marcher sur cette case ? Comme sur GBA : pas d'obstacle, même niveau d'élévation
+     * que lui (l'eau est à un autre niveau : un PNJ à pied n'y entre pas), pas de corniche, ni joueur,
+     * ni autre PNJ, ni warp.
+     */
+    private boolean npcCanEnter(Npc n, int x, int y) {
+        if (!map.layout.inBounds(x, y)) return false;
+        int block = map.layout.blockAt(x, y);
+        if (MapLayout.collision(block) != 0) return false;
+        int z = MapLayout.elevation(block), own = n.event.elevation();
+        if (z != 0 && z != 15 && own != 0 && own != 15 && z != own) return false;
+        int behavior = map.behaviorAt(x, y);
+        if (behavior >= 0x38 && behavior <= 0x3B) return false;      // corniches
+        if (behavior >= 0x10 && behavior <= 0x15) return false;      // étang, eau profonde, cascade, mer
         if (x == px && y == py) return false;
         if (moving && x == px + facing.dx && y == py + facing.dy) return false;
         if (map.warpAt(x, y).isPresent()) return false;
@@ -491,7 +502,8 @@ public final class OverworldScene implements Scene {
             if (n.dialogue() == null) n.setDialogue(text(n.event.script()));
             talking = n;
             final Npc speaker = n;
-            game.push(new DialogueScene(game, n.dialogue(), () -> { if (talking == speaker) talking = null; }));
+            game.push(new DialogueScene(game, n.dialogue(), () -> { if (talking == speaker) talking = null; },
+                    () -> new DialogueScene.Speaker(screenBounds(speaker), py < speaker.y())));
             return true;
         }
         for (SignEvent s : map.signs) {
@@ -506,10 +518,31 @@ public final class OverworldScene implements Scene {
             if (!facingOk) continue;
             List<String> pages = text(s.script());
             if (pages.isEmpty()) continue;
-            game.push(new DialogueScene(game, pages, null));
+            final int sx = s.x(), sy = s.y();
+            game.push(new DialogueScene(game, pages, null,
+                    () -> new DialogueScene.Speaker(tileBounds(sx, sy), false)));
             return true;
         }
         return false;
+    }
+
+    // Repère du dernier rendu (pour placer les bulles de dialogue)
+    private double lastOriginX, lastOriginY;
+    private int lastZoom = 1;
+
+    /** Rectangle du sprite d'un PNJ dans la fenêtre. */
+    private java.awt.geom.Rectangle2D screenBounds(Npc n) {
+        double i = game.interpolation();
+        double wx = n.exactX(i) + (T - n.width()) / 2.0, wy = n.exactY(i) + T - n.height();
+        // le haut du sprite est souvent vide (sprites 16x32) : on vise la tête
+        double top = wy + (n.height() >= 32 ? 8 : 0);
+        return new java.awt.geom.Rectangle2D.Double(lastOriginX + wx * lastZoom, lastOriginY + top * lastZoom,
+                n.width() * lastZoom, (wy + n.height() - top) * lastZoom);
+    }
+
+    private java.awt.geom.Rectangle2D tileBounds(int x, int y) {
+        return new java.awt.geom.Rectangle2D.Double(lastOriginX + x * T * lastZoom, lastOriginY + y * T * lastZoom,
+                T * lastZoom, T * lastZoom);
     }
 
     private List<String> text(int script) {
@@ -769,6 +802,9 @@ public final class OverworldScene implements Scene {
         // Origine du monde dans la fenêtre, alignée exactement sur l'image du sol
         double originX = game.blitX() - Math.floor(camX) * zoom;
         double originY = game.blitY() - Math.floor(camY) * zoom;
+        lastOriginX = originX;
+        lastOriginY = originY;
+        lastZoom = zoom;
 
         Graphics2D world = (Graphics2D) g.create();
         world.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,

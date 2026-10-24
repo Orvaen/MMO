@@ -122,13 +122,15 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   nom de la zone à l'entrée
 - **PNJ** : les personnages de chaque carte, lus dans la ROM (sprite, palette, position, comportement :
   regarder autour d'eux, errer dans leur zone, rester tournés…), qui bloquent le passage ; **A** face à
-  un PNJ : il se tourne vers toi et dit son texte (tiré de son script), page par page. Les panneaux se
+  un PNJ : il se tourne vers toi et une bulle pointée vers lui affiche son texte (tiré de son script), page par page. Les panneaux se
   lisent aussi. Les personnages d'histoire (qui apparaissent selon la progression) ne sont pas encore affichés
 - **Décor animé** : eau, courants, bords de plage et fleurs (Rouge Feu / Vert Feuille ; cascade et
   bord de l'eau en plus sur Émeraude), au rythme du jeu d'origine
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
-- **Pokédex** : toutes les espèces de la ROM (sprite, types, statistiques), vues / capturées
+- **Pokédex** façon PokeMMO : fenêtre par-dessus le jeu, grille dans l'ordre national (silhouettes
+  pour les espèces jamais vues), choix National / Kanto / Johto / Hoenn, recherche par nom ou n°,
+  fiche (types, statistiques), compteurs vus / capturés
 - **Personnage** : sprites du joueur lus dans la ROM et teints pièce par pièce (gabarit, peau, cheveux,
   couvre-chef, haut, bas, chaussures, sac), à la création et via le menu
 - Sauvegarde locale par jeu dans `~/.orvaen-mmo/save-<code>.properties`

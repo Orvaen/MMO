@@ -47,6 +47,41 @@ public final class SpeciesRepository {
         return species.length;
     }
 
+    private int[] national;
+
+    /**
+     * N° du Pokédex national (celui affiché en jeu) : pour Hoenn, l'ordre interne de la ROM diffère
+     * (Arcko est l'espèce interne 277 mais le n° 252). Table u16 « espèce → n° national » retrouvée par
+     * sa forme : 1, 2, 3… 251, puis 252 pour l'espèce 277. À défaut : le n° interne.
+     */
+    public int nationalNumber(int id) {
+        if (national == null) national = readNational();
+        return id > 0 && id < national.length && national[id] > 0 ? national[id] : id;
+    }
+
+    private int[] readNational() {
+        int[] out = new int[species.length];
+        int need = 276 * 2 + 2;
+        for (int o = 0; o + need <= rom.size(); o += 2) {
+            if (rom.u16(o) != 1 || rom.u16(o + 2) != 2 || rom.u16(o + 4) != 3) continue;
+            boolean ok = true;
+            for (int i = 3; i < 251 && ok; i++) ok = rom.u16(o + i * 2) == i + 1;
+            if (!ok || rom.u16(o + 276 * 2) != 252) continue;
+            for (int id = 1; id < species.length && rom.inRange(o + (id - 1) * 2, 2); id++) {
+                out[id] = rom.u16(o + (id - 1) * 2);
+            }
+            return out;
+        }
+        return out;
+    }
+
+    /** Espèces réelles dans l'ordre du Pokédex national. */
+    public List<Species> nationalOrder() {
+        List<Species> out = new ArrayList<>(all());
+        out.sort(java.util.Comparator.comparingInt(sp -> nationalNumber(sp.id())));
+        return Collections.unmodifiableList(out);
+    }
+
     public Species get(int id) {
         if (id < 0 || id >= species.length) {
             throw new IllegalArgumentException("Espèce inconnue : " + id);

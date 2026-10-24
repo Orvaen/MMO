@@ -75,6 +75,7 @@ public final class SelfTest {
         test("PNJ : A → il parle (texte du script, {PLAYER}, pages)", SelfTest::npcTalks);
         test("Panneau : lisible de face uniquement", SelfTest::signReads);
         test("Tuiles animées : les fleurs changent de frame", SelfTest::tileAnimation);
+        test("Pokédex : fenêtre, recherche, sélection, fermeture", SelfTest::pokedexWindow);
         test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
@@ -481,6 +482,32 @@ public final class SelfTest {
         eq(Direction.UP, w.facing(), "tourné vers le panneau");
         tap(g, Button.A);
         check(g.top() instanceof DialogueScene, "le panneau se lit de face");
+    }
+
+    private static void pokedexWindow() {
+        Game g = game();
+        g.save.seen.add(2);
+        g.renderWindow(1280, 720);
+        DexScene dex = new DexScene(g);
+        g.push(dex);
+        g.simulateFrame();
+        eq(g.data.species.all().size(), dex.shownCount(), "toutes les espèces affichées");
+        click(g, dex.anchor("search"));
+        g.input().type("bebe");
+        g.simulateFrame();
+        eq(1, dex.shownCount(), "recherche par nom (sans accents), espèces vues uniquement");
+        eq(2, dex.selectedSpecies().id(), "la seule espèce trouvée est sélectionnée");
+        g.input().type("\b\b\b\b1");
+        g.simulateFrame();
+        eq(1, dex.shownCount(), "recherche par numéro");
+        g.input().type("\b\u001b");
+        g.simulateFrame();
+        eq(g.data.species.all().size(), dex.shownCount(), "recherche effacée");
+        click(g, dex.anchor("cell:1"));
+        eq(2, dex.selectedSpecies().id(), "clic sur une case");
+        check(g.renderWindow(1280, 720).getRGB(640, 30) != 0, "rendu");
+        click(g, dex.anchor("close"));
+        check(g.top() instanceof OverworldScene, "× ferme le Pokédex");
     }
 
     private static void tileAnimation() {
