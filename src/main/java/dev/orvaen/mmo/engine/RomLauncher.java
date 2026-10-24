@@ -72,8 +72,10 @@ public final class RomLauncher {
     static final Color CARD_BORDER = new Color(0x33363F);
     static final Color FIELD = new Color(0x121317);
     static final Color FIELD_BORDER = new Color(0x3A3D46);
-    static final Color ACCENT = new Color(0x3D7BE0);
-    static final Color ACCENT_HOVER = new Color(0x4F8DF2);
+    static final Color ACCENT = new Color(0x6E7FE3);        // pervenche, comme les panneaux de PokeMMO
+    static final Color ACCENT_HOVER = new Color(0x8290F0);
+    static final Color HEADER = new Color(0xC9CFF7);        // en-tête lavande des fenêtres de PokeMMO
+    static final Color HEADER_TEXT = new Color(0x1B1E33);
     static final Color TEXT = new Color(0xE6E8EE);
     static final Color MUTED = new Color(0x9AA0AC);
     static final Color OK = new Color(0x5BD18B);
@@ -192,14 +194,15 @@ public final class RomLauncher {
         JPanel header = new JPanel();
         header.setOpaque(false);
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-        JLabel title = new JLabel("Configuration des ROM");
-        title.setForeground(TEXT);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        HeaderBar title = new HeaderBar("Configuration des ROM");
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel intro = new JLabel("<html>Orvaen MMO utilise <b>ta propre cartouche</b>. Indique où se trouvent tes ROM :"
                 + "<br>le jeu les lit sur ton PC, sans jamais les copier ni les envoyer.</html>");
         intro.setForeground(MUTED);
+        intro.setAlignmentX(Component.LEFT_ALIGNMENT);
+        intro.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
         header.add(title);
-        header.add(Box.createVerticalStrut(6));
+        header.add(Box.createVerticalStrut(10));
         header.add(intro);
         root.add(header, BorderLayout.NORTH);
 
@@ -260,6 +263,7 @@ public final class RomLauncher {
         updatePlay();
 
         frame.pack();
+        WindowsTheme.darkTitleBar(frame); // barre de titre sombre, comme PokeMMO
         frame.setMinimumSize(frame.getSize());
         frame.setLocationRelativeTo(null);
     }
@@ -447,6 +451,37 @@ public final class RomLauncher {
             }
         });
         return f;
+    }
+
+    /** En-tête lavande avec icône, comme celui des fenêtres « Pokémon Résumé » de PokeMMO. */
+    private static final class HeaderBar extends JComponent {
+        private final String text;
+        private final Image icon = appIcon(16);
+
+        HeaderBar(String text) {
+            this.text = text;
+            setFont(new JLabel().getFont().deriveFont(Font.BOLD, 14f));
+            setPreferredSize(new Dimension(10, 30));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setColor(HEADER);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g2.setColor(new Color(0x9AA3E0));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g2.drawImage(icon, 8, (getHeight() - 16) / 2, null);
+            g2.setFont(getFont());
+            g2.setColor(HEADER_TEXT);
+            int textWidth = g2.getFontMetrics().stringWidth(text);
+            int baseline = (getHeight() + g2.getFontMetrics().getAscent() - g2.getFontMetrics().getDescent()) / 2;
+            g2.drawString(text, (getWidth() - textWidth) / 2, baseline);
+            g2.dispose();
+        }
     }
 
     /** Carte arrondie, surlignée quand son jeu est sélectionné. */

@@ -68,6 +68,7 @@ public final class Game {
         });
         frame.add(canvas);
         frame.pack();
+        WindowsTheme.darkTitleBar(frame);
         frame.setLocationRelativeTo(null);
     }
 

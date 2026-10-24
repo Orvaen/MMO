@@ -14,10 +14,10 @@ javac -encoding UTF-8 --release 21 -d build\classes @build\main-sources.txt || g
 echo - Tests
 (for /r src\test\java %%f in (*.java) do (set "p=%%f" & echo "!p:\=/!")) > build\test-sources.txt
 javac -encoding UTF-8 --release 21 -cp build\classes -d build\test-classes @build\test-sources.txt || goto :error
-java -Djava.awt.headless=true -Dstdout.encoding=UTF-8 -cp build\classes;build\test-classes dev.orvaen.mmo.SelfTest || goto :error
+java --enable-native-access=ALL-UNNAMED -Djava.awt.headless=true -Dstdout.encoding=UTF-8 -cp build\classes;build\test-classes dev.orvaen.mmo.SelfTest || goto :error
 
 echo - Archive
-jar --create --file build\orvaen-mmo.jar --main-class dev.orvaen.mmo.Main -C build\classes . || goto :error
+jar --create --file build\orvaen-mmo.jar --manifest src\main\manifest.mf --main-class dev.orvaen.mmo.Main -C build\classes . || goto :error
 echo OK : build\orvaen-mmo.jar - lance-le avec : java -jar build\orvaen-mmo.jar
 exit /b 0
 

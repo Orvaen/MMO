@@ -42,7 +42,7 @@ import java.util.Random;
 public final class SelfTest {
 
     private interface Check {
-        void run() throws Exception;
+        void run() throws Throwable;
     }
 
     private static final List<String> failures = new ArrayList<>();
@@ -79,6 +79,7 @@ public final class SelfTest {
         test("Personnage : le personnage est rechargé au lancement suivant", SelfTest::characterPersists);
         test("ROM : vérification de l'en-tête pour la fenêtre de choix", () -> romCheck(home));
         test("ROM : un chemin par jeu, ancien réglage repris, dernier jeu relancé", () -> romSlots(home));
+        test("Fenêtres : appel natif de la barre de titre sombre (sonde libc hors Windows)", SelfTest::nativeTitleBar);
         test("Export : sprites, cartes et CSV", () -> exportTo(home.resolve("export")));
 
         System.out.printf("%n%d réussi(s), %d échec(s)%n", passed, failures.size());
@@ -634,6 +635,19 @@ public final class SelfTest {
         Storage.setRomPath(RomCheck.Slot.KANTO, null);
         check(Storage.romPath(RomCheck.Slot.KANTO) == null, "ligne vidée");
         check(RomLauncher.remembered() == null, "plus aucune ROM valide : la fenêtre doit s'ouvrir");
+    }
+
+    private static void nativeTitleBar() throws Throwable {
+        check(isWindows() || !dev.orvaen.mmo.engine.WindowsTheme.darkTitleBar(null),
+                "hors Windows : aucun appel, renvoie faux");
+        if (System.getProperty("os.name", "").toLowerCase().contains("linux")) {
+            eq(ProcessHandle.current().pid(), dev.orvaen.mmo.engine.WindowsTheme.nativeProbe("libc.so.6"),
+                    "le mécanisme d'appel natif (réflexion + java.lang.foreign) fonctionne");
+        }
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase().contains("windows");
     }
 
     private static void exportTo(Path dir) throws Exception {

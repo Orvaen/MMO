@@ -29,6 +29,10 @@
                         <manifest>
                             <mainClass>dev.orvaen.mmo.Main</mainClass>
                         </manifest>
+                        <manifestEntries>
+                            <!-- appels natifs pour la barre de titre sombre sous Windows -->
+                            <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
