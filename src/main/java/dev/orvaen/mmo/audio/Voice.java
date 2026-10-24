@@ -11,6 +11,10 @@ final class Voice {
     private static final double MIXER_RATE_FIX = 13379.0; // fréquence du mixeur de Rouge Feu (sons « fixes »)
     private static final double[] DUTY = {0.125, 0.25, 0.5, 0.75};
     private static final double MIX = 0.3;
+    private static final double CGB_LEVEL = 0.28;
+    private static final float NOISE_LEVEL = 0.22f;
+    /** Vitesse à laquelle le volume rejoint sa nouvelle valeur (par échantillon : ~2 ms). */
+    private static final float VOLUME_GLIDE = 0.012f;
 
     final MusicPlayer.Track track;
     final int key;              // note jouée (pour EOT key)
@@ -39,7 +43,8 @@ final class Voice {
     int stage;                  // 0 attaque, 1 déclin, 2 maintien, 3 relâche, 4 fini
     int cgbTimer;
     int gate;                   // ticks restants (-1 : tenue jusqu'à EOT)
-    float volL, volR;
+    float volL, volR;           // volume visé (recalculé à chaque frame du moteur)
+    private float curL, curR;   // volume réellement appliqué : glisse vers volL/volR (pas de « clic »)
     boolean done;
 
     Voice(MusicPlayer.Track track, int key) {
@@ -125,7 +130,9 @@ final class Voice {
 
         double e = cgb() ? env / 15.0 : env / 255.0;
         // Plusieurs pistes jouent en même temps : chaque voix ne prend qu'une part du volume total
-        double v = velocity / 127.0 * track.volume / 127.0 * masterVolume * e * (cgb() ? 0.45 : 1.0) * MIX;
+        // Les canaux « Game Boy » (carré, onde, bruit) sonnent beaucoup plus fort que les échantillons à
+        // volume égal : sur la console ils sont mixés plus bas, on fait pareil.
+        double v = velocity / 127.0 * track.volume / 127.0 * masterVolume * e * (cgb() ? CGB_LEVEL : 1.0) * MIX;
         int pan = track.pan;
         if (instrumentPan != Integer.MIN_VALUE) pan = Math.max(-64, Math.min(63, pan + instrumentPan));
         volL = (float) (v * Math.min(1.0, (64 - pan) / 64.0));
@@ -162,7 +169,7 @@ final class Voice {
                     pos += step;
                 }
                 case SQUARE -> {
-                    s = (pos % 1.0) < DUTY[duty & 3] ? 0.5f : -0.5f;
+                    s = (float) (square(pos % 1.0, DUTY[duty & 3], step) * 0.5);
                     pos += step;
                 }
                 case WAVE -> {
@@ -177,11 +184,37 @@ final class Voice {
                         lfsr = (lfsr >> 1) | (bit << 14);
                         if (shortNoise) lfsr = (lfsr & ~0x40) | (bit << 6);
                     }
-                    s = (lfsr & 1) == 0 ? 0.4f : -0.4f;
+                    s = (lfsr & 1) == 0 ? NOISE_LEVEL : -NOISE_LEVEL;
                 }
             }
-            buf[i * 2] += s * volL;
-            buf[i * 2 + 1] += s * volR;
+            curL += (volL - curL) * VOLUME_GLIDE;
+            curR += (volR - curR) * VOLUME_GLIDE;
+            buf[i * 2] += s * curL;
+            buf[i * 2 + 1] += s * curR;
         }
+    }
+
+    /**
+     * Onde carrée « adoucie » (méthode PolyBLEP) : on arrondit chaque front montant / descendant sur la
+     * durée d'un échantillon. Une carrée parfaite crée des aigus parasites qui sifflent et agressent l'oreille.
+     */
+    private static double square(double phase, double duty, double dt) {
+        double v = phase < duty ? 1 : -1;
+        v += blep(phase, dt);
+        v -= blep((phase - duty + 1) % 1.0, dt);
+        return v;
+    }
+
+    private static double blep(double t, double dt) {
+        if (dt <= 0) return 0;
+        if (t < dt) {
+            t /= dt;
+            return t + t - t * t - 1;
+        }
+        if (t > 1 - dt) {
+            t = (t - 1) / dt;
+            return t * t + t + t + 1;
+        }
+        return 0;
     }
 }

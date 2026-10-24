@@ -28,6 +28,7 @@ public final class Input extends KeyAdapter {
     private int wheel;
     private int liveZoom, zoomSteps;
     private boolean liveFps, fpsToggled, liveMute, muteToggled;
+    private int liveVolume, volumeSteps;
     private final MouseAdapter mouse = new MouseAdapter() {
         @Override
         public void mouseMoved(MouseEvent e) {
@@ -92,6 +93,8 @@ public final class Input extends KeyAdapter {
             case KeyEvent.VK_SUBTRACT, KeyEvent.VK_MINUS -> liveZoom--;
             case KeyEvent.VK_F3 -> liveFps = true;
             case KeyEvent.VK_F9 -> liveMute = true;
+            case KeyEvent.VK_F7 -> liveVolume--;
+            case KeyEvent.VK_F8 -> liveVolume++;
             default -> { }
         }
         Button b = map(e.getKeyCode());
@@ -139,6 +142,8 @@ public final class Input extends KeyAdapter {
         liveFps = false;
         muteToggled = liveMute;
         liveMute = false;
+        volumeSteps = liveVolume;
+        liveVolume = 0;
         livePresses = 0;
         liveReleases = 0;
         liveWheel = 0;
@@ -224,6 +229,9 @@ public final class Input extends KeyAdapter {
 
     /** F3 appuyée pendant cette frame (compteur d'images par seconde). */
     public boolean fpsToggled() { return fpsToggled; }
+
+    /** F7 (baisser) / F8 (monter) pendant cette frame : nombre de crans de volume. */
+    public int volumeSteps() { return volumeSteps; }
 
     /** F9 appuyée pendant cette frame (couper / remettre le son). */
     public boolean muteToggled() { return muteToggled; }

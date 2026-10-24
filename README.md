@@ -63,6 +63,7 @@ Le dossier `export/` est ignoré par git.
 | Liste de toutes les cartes (téléportation, outil de dev) | M |
 | Zoom du monde (mémorisé) | + / - , ou Ctrl + molette |
 | Compteur d'images par seconde et diagnostic d'affichage | F3 |
+| Baisser / monter le volume (mémorisé, 40 % au départ) | F7 / F8 |
 | Couper / remettre le son | F9 |
 | Page précédente / suivante dans les listes | A / E, Page↑ / Page↓ |
 

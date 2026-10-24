@@ -290,6 +290,7 @@ public final class Game {
         createWindow();
         frame.setVisible(true);
         if (Storage.muted()) data.audio.toggleMute();
+        data.audio.setMasterVolume(Storage.volume() / 100.0);
         data.audio.start();
         // Synchronisation sur l'écran : sous Windows on attend la composition DWM après chaque image
         // (fiable en fenêtre) ; ailleurs on demande la V-Sync à Java2D ; sinon minuterie.
@@ -420,7 +421,12 @@ public final class Game {
         input.poll();
         if (input.zoomSteps() != 0) adjustZoom(input.zoomSteps());
         if (input.fpsToggled()) showFps = !showFps;
-        if (input.muteToggled()) Storage.setMuted(data.audio.toggleMute());
+        if (input.muteToggled()) {
+            Storage.setMuted(data.audio.toggleMute());
+            showVolume();
+        }
+        if (input.volumeSteps() != 0) changeVolume(input.volumeSteps());
+        if (volumeToast > 0) volumeToast--;
         sizeScreen();
         if (scriptFade < scriptFadeTarget) scriptFade = Math.min(scriptFadeTarget, scriptFade + 0.0625f);
         else if (scriptFade > scriptFadeTarget) scriptFade = Math.max(scriptFadeTarget, scriptFade - 0.0625f);
@@ -524,6 +530,7 @@ public final class Game {
             out.setColor(new Color(0, 0, 0, Math.min(1f, shade)));
             out.fillRect(0, 0, cw, ch);
         }
+        drawVolume(out, cw);
         if (showFps) {
             String fps = String.format("%.0f FPS · %d Hz · %s · rendu %.1f ms · pire écart %.1f ms",
                     measuredFps, refreshHz, pacing, renderShown, worstShown);
@@ -535,6 +542,43 @@ public final class Game {
             out.setColor(Color.WHITE);
             out.drawString(fps, cw - tw - 10, 20);
         }
+    }
+
+    // Volume (F7 / F8 / F9) : petit indicateur en haut de l'écran pendant un instant
+    private static final int VOLUME_STEP = 10;
+    private int volumeToast;
+
+    /** Monte ou baisse le volume de quelques crans de 10 %, et le mémorise. */
+    private void changeVolume(int steps) {
+        int v = Math.max(0, Math.min(100, (int) Math.round(data.audio.masterVolume() * 100) + steps * VOLUME_STEP));
+        data.audio.setMasterVolume(v / 100.0);
+        Storage.setVolume(v);
+        if (data.audio.muted() && steps > 0) Storage.setMuted(data.audio.toggleMute());
+        showVolume();
+    }
+
+    private void showVolume() {
+        volumeToast = 90;
+    }
+
+    private void drawVolume(Graphics2D out, int cw) {
+        if (volumeToast <= 0) return;
+        int v = (int) Math.round(data.audio.masterVolume() * 100);
+        String text = data.audio.muted() ? "Son coupé (F9)" : "Volume " + v + " %   (F7 −  F8 +)";
+        out.setFont(HiUi.font(14, true));
+        out.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        int tw = out.getFontMetrics().stringWidth(text), bw = tw + 32, bh = 34, x = (cw - bw) / 2, y = 14;
+        float alpha = Math.min(1f, volumeToast / 15f);
+        out.setColor(new Color(20, 22, 34, (int) (225 * alpha)));
+        out.fillRoundRect(x, y, bw, bh, 10, 10);
+        if (!data.audio.muted()) {                       // jauge sous le texte
+            out.setColor(new Color(255, 255, 255, (int) (50 * alpha)));
+            out.fillRect(x + 16, y + bh - 7, tw, 3);
+            out.setColor(new Color(140, 147, 230, (int) (255 * alpha)));
+            out.fillRect(x + 16, y + bh - 7, tw * v / 100, 3);
+        }
+        out.setColor(new Color(255, 255, 255, (int) (255 * alpha)));
+        out.drawString(text, x + 16, y + 21);
     }
 
     // Compteur d'images par seconde (F3), comme en haut à droite de PokeMMO

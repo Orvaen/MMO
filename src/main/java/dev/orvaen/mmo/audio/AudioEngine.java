@@ -32,7 +32,8 @@ public final class AudioEngine {
     private MusicPlayer bgm, fanfare;
     private final List<MusicPlayer> effects = new ArrayList<>();
     private double frameAcc;
-    private double master = 0.7;
+    private double master = 0.5;
+    private final OutputFilter filter = new OutputFilter(RATE);
     private boolean muted;
     private volatile boolean running;
     private Thread thread;
@@ -168,7 +169,7 @@ public final class AudioEngine {
         while (running) {
             renderOffline(buf, CHUNK);
             for (int i = 0; i < CHUNK * 2; i++) {
-                int v = (int) (Math.tanh(buf[i]) * 30000);
+                int v = (int) (buf[i] * 32000);
                 out[i * 2] = (byte) v;
                 out[i * 2 + 1] = (byte) (v >> 8);
             }
@@ -196,6 +197,7 @@ public final class AudioEngine {
             done += n;
             frameAcc -= n;
         }
+        filter.process(buf, frames);
         if (muted) java.util.Arrays.fill(buf, 0, frames * 2, 0f);
     }
 

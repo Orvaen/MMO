@@ -101,6 +101,22 @@ public final class Storage {
         write(CONFIG, p, "Configuration du moteur");
     }
 
+    /** Volume du son en pourcents (touches F7 / F8), mémorisé. 40 % par défaut. */
+    public static int volume() {
+        try {
+            int v = Integer.parseInt(read(CONFIG).getProperty("audio.volume", "40").trim());
+            return Math.max(0, Math.min(100, v));
+        } catch (NumberFormatException e) {
+            return 40;
+        }
+    }
+
+    public static void setVolume(int percent) {
+        Properties p = read(CONFIG);
+        p.setProperty("audio.volume", String.valueOf(Math.max(0, Math.min(100, percent))));
+        write(CONFIG, p, "Configuration du moteur");
+    }
+
     /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
     public static RomCheck.Slot lastSlot() {
         String v = read(CONFIG).getProperty("rom.last", "");
