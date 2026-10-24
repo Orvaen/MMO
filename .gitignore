@@ -1,0 +1,26 @@
+# ROM et sauvegardes : elles appartiennent au joueur, elles ne vont JAMAIS dans le dépôt
+*.gba
+*.GBA
+*.nds
+*.NDS
+*.sav
+*.sgm
+*.ss[0-9]
+roms/
+
+# Exports générés depuis une ROM (--extract)
+export/
+extract/
+
+# Build
+build/
+target/
+out/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
