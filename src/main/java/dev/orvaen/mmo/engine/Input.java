@@ -147,6 +147,7 @@ public final class Input extends KeyAdapter {
         livePresses = 0;
         liveReleases = 0;
         liveWheel = 0;
+        hidden.clear();
         for (Button b : Button.values()) {
             boolean down = live.get(b);
             int h = held.get(b);
@@ -172,6 +173,17 @@ public final class Input extends KeyAdapter {
     public int rawMouseY() { return savedMouseY; }
 
     /** Une fenêtre saisit du texte : les touches ne vont pas au jeu pendant cette frame. */
+    /** Touches prises par une fenêtre pendant cette frame : le jeu ne les voit pas (remis à zéro à chaque frame). */
+    private final java.util.EnumSet<Button> hidden = java.util.EnumSet.noneOf(Button.class);
+
+    /**
+     * Une fenêtre se sert de ces touches (flèches dans un menu…) : le jeu ne les voit pas pendant cette frame,
+     * sans perdre leur état (une touche maintenue ne redevient pas « appuyée » à chaque frame).
+     */
+    public void hide(Button... buttons) {
+        java.util.Collections.addAll(hidden, buttons);
+    }
+
     public void consumeKeys() {
         for (Button b : Button.values()) {
             pressed.put(b, false);
@@ -191,9 +203,9 @@ public final class Input extends KeyAdapter {
         return frameTyped;
     }
 
-    public boolean down(Button b) { return held.get(b) > 0; }
-    public boolean pressed(Button b) { return pressed.get(b); }
-    public int heldFrames(Button b) { return held.get(b); }
+    public boolean down(Button b) { return !hidden.contains(b) && held.get(b) > 0; }
+    public boolean pressed(Button b) { return !hidden.contains(b) && pressed.get(b); }
+    public int heldFrames(Button b) { return hidden.contains(b) ? 0 : held.get(b); }
 
     // ------------------------------------------------------------------ souris
 
@@ -247,6 +259,7 @@ public final class Input extends KeyAdapter {
 
     /** Appui avec répétition automatique (menus). */
     public boolean repeat(Button b) {
+        if (hidden.contains(b)) return false;
         int h = held.get(b);
         return pressed.get(b) || (h > 18 && h % 4 == 0);
     }

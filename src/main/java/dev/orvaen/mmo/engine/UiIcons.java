@@ -17,7 +17,7 @@ import java.awt.geom.RoundRectangle2D;
 public final class UiIcons {
 
     public enum Icon { CARD, BARS, HEXAGON, BOLT, BALL, HASH, TAG, LEAF, STAR, PERSON, SPARK, ARROW_UP, BAG, HEART,
-        SPEAKER, MUTE, NOTE, GEAR, SCREEN }
+        SPEAKER, MUTE, NOTE, GEAR, SCREEN, DEX, MENU }
 
     private UiIcons() {
     }
@@ -151,6 +151,18 @@ public final class UiIcons {
                 g.draw(new RoundRectangle2D.Double(1.5, 2.5, 13, 9, 2.5, 2.5));
                 g.draw(new Line2D.Double(8, 11.5, 8, 14));
                 g.draw(new Line2D.Double(5, 14, 11, 14));
+            }
+            case DEX -> {                             // Pokédex : boîtier avec un gros voyant
+                g.draw(new RoundRectangle2D.Double(2.5, 1.5, 11, 13, 3, 3));
+                g.fill(new Ellipse2D.Double(4.5, 3.5, 5, 5));
+                g.fill(new Ellipse2D.Double(10.3, 3.8, 1.8, 1.8));
+                g.draw(new Line2D.Double(5, 11.5, 11, 11.5));
+            }
+            case MENU -> {                            // menu
+                g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(new Line2D.Double(2.5, 4, 13.5, 4));
+                g.draw(new Line2D.Double(2.5, 8, 13.5, 8));
+                g.draw(new Line2D.Double(2.5, 12, 13.5, 12));
             }
             case HEART -> {                           // PV
                 Path2D p = new Path2D.Double();

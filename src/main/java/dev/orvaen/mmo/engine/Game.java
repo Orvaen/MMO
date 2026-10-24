@@ -99,21 +99,24 @@ public final class Game {
 
     /** Ouvre une fenêtre (ou la ferme si elle est déjà ouverte, comme un raccourci de PokeMMO). */
     public void toggleWindow(UiWindow w) {
-        for (UiWindow o : windows) {
-            if (o.id().equals(w.id())) {
-                o.frame().close();
-                windows.remove(o);
-                return;
-            }
+        if (windowOpen(w.id())) {
+            closeWindows();
+            return;
         }
-        w.frame().cascade(windows.size());
+        openWindow(w);
+    }
+
+    /** Ouvre une fenêtre : une seule à la fois, celle d'avant se ferme. */
+    public void openWindow(UiWindow w) {
+        for (UiWindow o : windows) if (o != w) o.frame().close();
+        windows.clear();
         windows.add(w);
     }
 
-    public void openWindow(UiWindow w) {
-        windows.removeIf(o -> o.id().equals(w.id()));
-        w.frame().cascade(windows.size());
-        windows.add(w);
+    /** Ferme la fenêtre ouverte (s'il y en a une). */
+    public void closeWindows() {
+        for (UiWindow o : windows) o.frame().close();
+        windows.clear();
     }
 
     public java.util.List<UiWindow> windows() {
@@ -153,6 +156,7 @@ public final class Game {
             }
         }
         if (over != null) input.consumeMouse();
+        if (!windows.isEmpty()) input.hide(windows.get(windows.size() - 1).usesKeys());
         if (!windows.isEmpty() && windows.get(windows.size() - 1).capturesKeyboard()) input.consumeKeys();
         if (esc) input.consumeKeys();
     }

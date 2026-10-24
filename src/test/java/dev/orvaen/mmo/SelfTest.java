@@ -538,16 +538,15 @@ public final class SelfTest {
         int x0 = w.playerX();
         hold(g, Button.RIGHT, 20);
         check(w.playerX() != x0, "on marche avec le Pokédex ouvert");
-        // Plusieurs fenêtres à la fois
+        // Une seule fenêtre à la fois : ouvrir la carte de dresseur ferme le Pokédex
         g.openWindow(new dev.orvaen.mmo.scenes.TrainerCardWindow(g));
         g.simulateFrame();
-        eq(2, g.windows().size(), "Pokédex et carte de dresseur ouverts ensemble");
+        eq(1, g.windows().size(), "une seule fenêtre ouverte");
+        check(g.windowOpen("carte-dresseur") && !g.windowOpen("pokedex"), "la carte remplace le Pokédex");
         g.renderWindow(1280, 720);
         g.input().type("\u001b");
         g.simulateFrame();
-        eq(1, g.windows().size(), "Échap ferme la fenêtre de devant");
-        click(g, dex.anchor("close"));
-        check(g.windows().isEmpty(), "× ferme le Pokédex");
+        check(g.windows().isEmpty(), "Échap ferme la fenêtre");
         g.input().type("p");
         g.simulateFrame();
         check(g.windowOpen("pokedex"), "raccourci P : ouvre le Pokédex");
@@ -1303,6 +1302,18 @@ public final class SelfTest {
         }
         click(g, win.anchor("next"));
         eq(0, win.index(), "› : Pokémon suivant (on boucle)");
+        // clavier : ← → onglets, ↑ ↓ Pokémon, et le joueur ne bouge pas pendant ce temps
+        int px = w.playerX(), py = w.playerY();
+        click(g, win.anchor("tab0"));
+        tap(g, Button.RIGHT);
+        eq(1, win.tab(), "→ : onglet suivant");
+        tap(g, Button.LEFT);
+        tap(g, Button.LEFT);
+        eq(3, win.tab(), "← : onglet précédent (on boucle)");
+        tap(g, Button.DOWN);
+        eq(1, win.index(), "↓ : Pokémon suivant");
+        hold(g, Button.UP, 30);
+        check(w.playerX() == px && w.playerY() == py, "le joueur ne marche pas pendant qu'on navigue");
         click(g, win.anchor("close"));
         check(!g.windowOpen(dev.orvaen.mmo.scenes.SummaryWindow.ID), "× ferme le résumé");
         g.input().type("e");
@@ -1336,8 +1347,21 @@ public final class SelfTest {
         eq(0, g.zoomSetting(), "zoom automatique");
         BufferedImage img = g.renderWindow(1280, 720);
         check(img.getRGB(640, 360) != 0, "réglages dessinés");
+        // clavier : ligne « Musique », → monte de 5 %
+        tap(g, Button.DOWN);
+        eq(1, o.row(), "↓ : ligne suivante");
+        int before = o.value(dev.orvaen.mmo.scenes.OptionsWindow.MUSIC);
+        tap(g, Button.RIGHT);
+        eq(Math.min(100, before + 5), o.value(dev.orvaen.mmo.scenes.OptionsWindow.MUSIC), "→ : +5 %");
         click(g, o.anchor("close"));
         check(!g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "× ferme les réglages");
+        // barre de raccourcis en bas à droite : le bouton Réglages (4e) ouvre la fenêtre
+        java.awt.geom.Rectangle2D b = dev.orvaen.mmo.scenes.PartyBarProbe.shortcut(3, 1280, 720);
+        click(g, new java.awt.Point((int) b.getCenterX(), (int) b.getCenterY()));
+        check(g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "raccourci en icône : réglages");
+        b = dev.orvaen.mmo.scenes.PartyBarProbe.shortcut(1, 1280, 720);
+        click(g, new java.awt.Point((int) b.getCenterX(), (int) b.getCenterY()));
+        check(g.windowOpen("pokedex") && g.windows().size() == 1, "raccourci Pokédex : remplace les réglages");
         Storage.setMusicVolume(100);
         Storage.setEffectsVolume(100);
     }

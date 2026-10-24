@@ -61,6 +61,7 @@ public final class OverworldScene implements Scene {
     final MessageBox box = new MessageBox();
     private final GrassEffects grass;
     private final PartyBar party;
+    private final ShortcutBar shortcuts;
     private final FollowerPokemon follower;
     private final OverworldScriptHost host;
     private PlayerSprite avatar;
@@ -100,6 +101,7 @@ public final class OverworldScene implements Scene {
         this.host = new OverworldScriptHost(this);
         this.grass = new GrassEffects(game.data.fieldEffects());
         this.party = new PartyBar(game);
+        this.shortcuts = new ShortcutBar(game);
         this.follower = new FollowerPokemon(game.data.icons(), game.data.followerSprites(), game.data.species::nationalNumber);
         refreshAvatar();
         startNewGameIfNeeded();
@@ -186,6 +188,8 @@ public final class OverworldScene implements Scene {
         if (in.mousePressed()) {
             int slot = party.slotAt(in.mouseX(), in.mouseY(), game.viewWidth(), game.viewHeight());
             if (slot >= 0) openSummary(slot);
+            int b = shortcuts.buttonAt(in.mouseX(), in.mouseY(), game.viewWidth(), game.viewHeight());
+            if (b >= 0 && vm == null) shortcut(b);
         }
 
         if (vm != null) {
@@ -230,6 +234,20 @@ public final class OverworldScene implements Scene {
         game.save.store();
     }
 
+    /** Raccourci n° i de la barre du bas (même effet que sa touche). */
+    private void shortcut(int i) {
+        switch (i) {
+            case 0 -> {
+                if (game.save.party.isEmpty()) showMessage("Tu n'as pas encore de Pokémon.");
+                else game.toggleWindow(new SummaryWindow(game, 0));
+            }
+            case 1 -> game.toggleWindow(new DexWindow(game));
+            case 2 -> game.toggleWindow(new TrainerCardWindow(game));
+            case 3 -> game.toggleWindow(new OptionsWindow(game));
+            default -> game.push(new StartMenuScene(game, this));
+        }
+    }
+
     /** Résumé du Pokémon n° {@code slot} de l'équipe (la fenêtre déjà ouverte change de Pokémon). */
     void openSummary(int slot) {
         for (var w : game.windows()) {
@@ -249,10 +267,11 @@ public final class OverworldScene implements Scene {
             return true;
         }
         for (char c : in.typed().toLowerCase(Locale.ROOT).toCharArray()) {
-            if (c == 'p') game.toggleWindow(new DexWindow(game));
-            if (c == 'c') game.toggleWindow(new TrainerCardWindow(game));
-            if (c == 'e' && !game.save.party.isEmpty()) game.toggleWindow(new SummaryWindow(game, 0));
-            if (c == 'o') game.toggleWindow(new OptionsWindow(game));
+            for (int i = 0; i < ShortcutBar.SHORTCUTS.length; i++) {
+                if (ShortcutBar.SHORTCUTS[i].key().equalsIgnoreCase(String.valueOf(c)) && ShortcutBar.SHORTCUTS[i].windowId() != null) {
+                    shortcut(i);
+                }
+            }
         }
         if (in.pressed(Button.SELECT)) {
             game.push(new MapListScene(game, this));
@@ -833,6 +852,7 @@ public final class OverworldScene implements Scene {
         OverworldHud.drawAreaName(g, h, map.name, areaPopupTimer);
         if (noticeTimer > 0 && notice != null) OverworldHud.drawNotice(g, w, h, notice);
         party.draw(g, w, h);
+        shortcuts.draw(g, w, h);
         if (monPic > 0) OverworldHud.drawMonPic(g, w, h, game.data.species.frontSprite(monPic));
         box.render(g, w, h);
     }

@@ -73,8 +73,10 @@ Une scène a trois méthodes principales :
 | `render(Graphics2D g)` | dessin en pixels GBA (petit écran agrandi ensuite, pixels nets) |
 | `renderHiRes(Graphics2D g, w, h)` | dessin en haute résolution par-dessus (texte, interface) |
 
-Les **fenêtres** (Pokédex, carte de dresseur) ne sont pas des scènes : ce sont des `UiWindow`
-déplaçables qui restent ouvertes pendant qu'on joue (`game.toggleWindow(...)`).
+Les **fenêtres** (Pokédex, carte de dresseur, résumé, réglages) ne sont pas des scènes : ce sont des
+`UiWindow` déplaçables qui restent ouvertes pendant qu'on joue (`game.toggleWindow(...)`). **Une seule à la
+fois** : en ouvrir une ferme l'autre. Une fenêtre peut garder des touches pour elle (`usesKeys()`, par
+exemple les flèches du résumé) : le joueur ne marche pas pendant qu'on navigue dedans.
 
 ---
 
@@ -111,6 +113,7 @@ Le son tourne à part, dans son propre fil d'exécution (`audio/AudioEngine`).
 | `PartyBar` | l'équipe à droite de l'écran (icônes, PV) ; un clic ouvre le résumé |
 | `SummaryWindow` | le résumé d'un Pokémon (touche E) : onglets en icônes (infos, stats, hexagone IV / EV, attaques), sprite sur un fond de combat de la ROM |
 | `OptionsWindow` | les réglages (touche O) : volume général, musique, effets sonores, son coupé, zoom |
+| `ShortcutBar` | les icônes de raccourcis en bas à droite (Équipe, Pokédex, Carte, Réglages, Menu) |
 
 **Une image du monde** (`OverworldScene.update`) :
 

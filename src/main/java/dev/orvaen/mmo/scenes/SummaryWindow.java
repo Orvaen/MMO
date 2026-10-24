@@ -41,7 +41,10 @@ import java.util.Locale;
  *   <li><b>Attaques</b> : type, catégorie, PP, puissance, précision.</li>
  * </ul>
  * À droite, le Pokémon sur un vrai fond de combat lu dans la ROM (choisi selon son type), avec son niveau
- * et ses types. ‹ › ou la molette : Pokémon suivant.
+ * et ses types.
+ * <p>
+ * Clavier (comme le résumé du jeu) : ← → changent d'onglet, ↑ ↓ changent de Pokémon, B ou Échap ferme.
+ * Souris : clic sur les icônes, ‹ › ou la molette.
  */
 public final class SummaryWindow implements UiWindow {
 
@@ -152,12 +155,23 @@ public final class SummaryWindow implements UiWindow {
     // ------------------------------------------------------------------ logique
 
     @Override
+    public Input.Button[] usesKeys() {
+        return new Input.Button[]{Input.Button.LEFT, Input.Button.RIGHT, Input.Button.UP, Input.Button.DOWN, Input.Button.B};
+    }
+
+    @Override
     public boolean update(Input in, boolean focused) {
         frame++;
         List<Pokemon> mons = team.get();
         if (mons.isEmpty()) return false;                  // plus personne dans l'équipe
         index = Math.floorMod(index, mons.size());
         if (!focused) return true;
+        // clavier
+        if (in.repeat(Input.Button.RIGHT)) tab = (tab + 1) % TAB_ICONS.length;
+        if (in.repeat(Input.Button.LEFT)) tab = (tab + TAB_ICONS.length - 1) % TAB_ICONS.length;
+        if (in.repeat(Input.Button.DOWN)) index = Math.floorMod(index + 1, mons.size());
+        if (in.repeat(Input.Button.UP)) index = Math.floorMod(index - 1, mons.size());
+        if (in.pressed(Input.Button.B)) return false;
         int mx = in.mouseX(), my = in.mouseY();
         // les onglets sont dans la barre de titre : on les teste avant le déplacement de la fenêtre
         if (in.mousePressed()) {

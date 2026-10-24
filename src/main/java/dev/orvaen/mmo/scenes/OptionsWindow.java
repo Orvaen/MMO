@@ -22,6 +22,9 @@ import java.awt.geom.RoundRectangle2D;
 /**
  * Fenêtre « Réglages » (touche O, ou menu Start) : volume général, musique, effets sonores, son coupé,
  * et zoom du monde. Tout est mémorisé ; les touches F7 / F8 / F9 et + / − restent en raccourcis.
+ * <p>
+ * Clavier : ↑ ↓ choisissent la ligne, ← → changent la valeur (5 % par appui), A coupe / remet le son,
+ * B ou Échap ferme.
  */
 public final class OptionsWindow implements UiWindow {
 
@@ -36,6 +39,9 @@ public final class OptionsWindow implements UiWindow {
     private final Game game;
     private final HiWindow win;
     private int dragging = -1;
+    /** Ligne choisie au clavier : 0-2 curseurs, 3 son coupé, 4 zoom. */
+    private int row;
+    private static final int ROW_MUTE = 3, ROW_ZOOM = 4, ROWS = 5;
 
     public OptionsWindow(Game game) {
         this.game = game;
@@ -145,6 +151,35 @@ public final class OptionsWindow implements UiWindow {
     // ------------------------------------------------------------------ logique
 
     @Override
+    public Input.Button[] usesKeys() {
+        return new Input.Button[]{Input.Button.LEFT, Input.Button.RIGHT, Input.Button.UP, Input.Button.DOWN,
+                Input.Button.A, Input.Button.B};
+    }
+
+    public int row() {
+        return row;
+    }
+
+    /** Clavier : ↑ ↓ ligne, ← → valeur, A interrupteur. Renvoie faux pour fermer. */
+    private boolean keys(Input in) {
+        if (in.pressed(Input.Button.B)) return false;
+        if (in.repeat(Input.Button.DOWN)) row = (row + 1) % ROWS;
+        if (in.repeat(Input.Button.UP)) row = (row + ROWS - 1) % ROWS;
+        int dir = in.repeat(Input.Button.RIGHT) ? 1 : in.repeat(Input.Button.LEFT) ? -1 : 0;
+        if (row < ROW_MUTE && dir != 0) {
+            set(row, value(row) + dir * 5);
+            save(row);
+        } else if (row == ROW_MUTE && (dir != 0 || in.pressed(Input.Button.A))) {
+            setMuted(dir > 0 || (dir == 0 && !audio().muted()));
+        } else if (row == ROW_ZOOM && dir != 0) {
+            int cur = 0;
+            for (int i = 0; i < ZOOMS.length; i++) if (ZOOMS[i] == game.zoomSetting()) cur = i;
+            game.setZoomSetting(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, cur + dir))]);
+        }
+        return true;
+    }
+
+    @Override
     public boolean update(Input in, boolean focused) {
         int mx = in.mouseX(), my = in.mouseY();
         if (dragging >= 0) {
@@ -159,6 +194,7 @@ public final class OptionsWindow implements UiWindow {
             return true;
         }
         if (!focused) return true;
+        if (!keys(in)) return false;
         if (win.update(in)) return true;
         if (in.mousePressed()) {
             if (win.closeButton().contains(mx, my)) return false;
@@ -201,6 +237,10 @@ public final class OptionsWindow implements UiWindow {
         int mx = game.input().mouseX(), my = game.input().mouseY();
         boolean muted = audio().muted();
 
+        // ligne choisie au clavier : un léger fond
+        double selY = row == ROW_ZOOM ? zoomRect(0).getY() - 3 * s : rowY(row) - 4 * s;
+        double selH = row == ROW_ZOOM ? zoomRect(0).getHeight() + 6 * s : 34 * s;
+        HiUi.fill(g, new Color(0x2E3150), in.getX() - 8 * s, selY, in.getWidth() + 16 * s, selH, 8 * s);
         section(g, Icon.SPEAKER, "SON", in.getX(), in.getY() + 8 * s, s);
         for (int i = 0; i < SLIDERS.length; i++) {
             double y = rowY(i);

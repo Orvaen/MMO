@@ -22,6 +22,14 @@ public interface UiWindow {
 
     void render(Graphics2D g, int width, int height, boolean focused);
 
+    /**
+     * Touches que la fenêtre utilise quand elle est au premier plan (flèches pour naviguer…) : le jeu
+     * ne les reçoit pas (le joueur ne marche pas pendant qu'on navigue dans le menu).
+     */
+    default Input.Button[] usesKeys() {
+        return new Input.Button[0];
+    }
+
     /** La fenêtre saisit du texte : le jeu ne reçoit pas le clavier. */
     default boolean capturesKeyboard() {
         return false;
