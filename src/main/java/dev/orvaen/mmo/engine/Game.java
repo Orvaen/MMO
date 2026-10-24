@@ -54,6 +54,7 @@ public final class Game {
 
         frame = new JFrame("Orvaen MMO — " + data.rom.profile().displayName(data.rom.gameCode()));
         frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        frame.setIconImages(java.util.List.of(RomLauncher.appIcon(16), RomLauncher.appIcon(32), RomLauncher.appIcon(64)));
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {

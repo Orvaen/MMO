@@ -30,7 +30,7 @@ java -jar build\orvaen-mmo.jar
 java -jar build/orvaen-mmo.jar
 ```
 
-Au premier lancement, la **fenêtre de configuration des ROM** s'ouvre, comme dans PokeMMO :
+Au premier lancement, la **fenêtre de configuration des ROM** (en mode sombre) s'ouvre, comme dans PokeMMO :
 une ligne par jeu (Rouge Feu / Vert Feuille, Émeraude), avec **Parcourir…** pour choisir le fichier
 dans l'explorateur de Windows (ou glisse le `.gba` sur la ligne). Chaque ROM est vérifiée tout de
 suite (✔ jeu et langue reconnus, ✘ fichier abîmé, jeu non pris en charge ou mauvaise ligne), puis
