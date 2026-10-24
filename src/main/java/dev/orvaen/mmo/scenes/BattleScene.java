@@ -28,7 +28,7 @@ public final class BattleScene implements Scene {
     private final int level;
     private final BufferedImage sprite;
     private final Random rng = new Random();
-    private final Avatar avatar = Avatar.defaultPlayer();
+    private final Avatar avatar;
 
     private State state = State.INTRO;
     private int timer;
@@ -42,6 +42,7 @@ public final class BattleScene implements Scene {
         this.species = game.data.species.get(speciesId);
         this.level = level;
         this.sprite = game.data.species.frontSprite(speciesId);
+        this.avatar = game.save.look != null ? new Avatar(game.save.look) : Avatar.defaultPlayer();
         this.text = "Un " + species.name() + " sauvage apparaît !";
     }
 
@@ -58,7 +59,7 @@ public final class BattleScene implements Scene {
                 if (in.pressed(Button.A)) {
                     if (cursor == 0) {
                         resolveCapture();
-                        go(State.THROW, "Vous lancez une Capsule !");
+                        go(State.THROW, playerName() + " lance une Capsule !");
                     } else {
                         go(State.END, "Vous prenez la fuite !");
                     }
@@ -88,6 +89,10 @@ public final class BattleScene implements Scene {
                 }
             }
         }
+    }
+
+    private String playerName() {
+        return game.save.name == null || game.save.name.isBlank() ? "Vous" : game.save.name;
     }
 
     /** Formule simplifiée inspirée de la Gen 3 (PV pleins, Capsule standard). */
@@ -134,7 +139,7 @@ public final class BattleScene implements Scene {
 
         // Dresseur (vu de dos)
         Graphics2D t = (Graphics2D) g.create();
-        t.translate(24, 64);
+        t.translate(24, 74);
         t.scale(2, 2);
         avatar.draw(t, 0, 0, Direction.UP, 0, 0);
         t.dispose();

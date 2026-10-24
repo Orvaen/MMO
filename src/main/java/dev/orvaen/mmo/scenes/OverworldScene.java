@@ -31,7 +31,7 @@ public final class OverworldScene implements Scene {
     private static final int POPUP_FRAMES = 150;
 
     private final Game game;
-    private final Avatar avatar = Avatar.defaultPlayer();
+    private Avatar avatar;
     private final Random rng = new Random();
     private final Map<String, MapRenderer.Rendered> renders = new LinkedHashMap<>(16, 0.75f, true) {
         @Override
@@ -64,6 +64,7 @@ public final class OverworldScene implements Scene {
 
     public OverworldScene(Game game) {
         this.game = game;
+        refreshAvatar();
         var save = game.save;
         var maps = game.data.maps;
         var profile = game.data.rom.profile();
@@ -77,6 +78,16 @@ public final class OverworldScene implements Scene {
             int[] spawn = defaultSpawn(start);
             enterMap(start, spawn[0], spawn[1]);
         }
+    }
+
+    /** Reprend l'apparence de la sauvegarde (après création ou modification du personnage). */
+    private void refreshAvatar() {
+        avatar = game.save.look != null ? new Avatar(game.save.look) : Avatar.defaultPlayer();
+    }
+
+    @Override
+    public void onEnter() {
+        refreshAvatar();
     }
 
     // ------------------------------------------------------------------ logique

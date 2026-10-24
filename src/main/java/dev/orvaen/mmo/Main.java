@@ -5,7 +5,7 @@ import dev.orvaen.mmo.engine.Game;
 import dev.orvaen.mmo.engine.Storage;
 import dev.orvaen.mmo.rom.Rom;
 import dev.orvaen.mmo.rom.RomException;
-import dev.orvaen.mmo.scenes.OverworldScene;
+import dev.orvaen.mmo.scenes.CharacterCreatorScene;
 import dev.orvaen.mmo.tools.Extractor;
 
 import javax.swing.JFileChooser;
@@ -72,7 +72,7 @@ public final class Main {
         Storage.setRomPath(lastPath);
         System.out.println(data.summary());
         Game game = new Game(data);
-        game.run(() -> new OverworldScene(game));
+        game.run(() -> CharacterCreatorScene.firstScene(game));
     }
 
     private static String lastPath;

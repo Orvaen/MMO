@@ -1,19 +1,23 @@
 package dev.orvaen.mmo;
 
 import dev.orvaen.mmo.data.GameData;
+import dev.orvaen.mmo.data.PlayerLook;
 import dev.orvaen.mmo.data.Species;
 import dev.orvaen.mmo.data.WildEncounters;
 import dev.orvaen.mmo.engine.Game;
 import dev.orvaen.mmo.engine.Input.Button;
+import dev.orvaen.mmo.engine.Storage;
 import dev.orvaen.mmo.gfx.GbaGfx;
 import dev.orvaen.mmo.rom.GameProfile;
 import dev.orvaen.mmo.rom.Lz77;
 import dev.orvaen.mmo.rom.Rom;
 import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.scenes.BattleScene;
+import dev.orvaen.mmo.scenes.CharacterCreatorScene;
 import dev.orvaen.mmo.scenes.DexScene;
 import dev.orvaen.mmo.scenes.Direction;
 import dev.orvaen.mmo.scenes.OverworldScene;
+import dev.orvaen.mmo.scenes.StartMenuScene;
 import dev.orvaen.mmo.tools.Extractor;
 import dev.orvaen.mmo.world.Connection;
 import dev.orvaen.mmo.world.GameMap;
@@ -62,6 +66,11 @@ public final class SelfTest {
         test("Moteur : collision avec un obstacle", SelfTest::collision);
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
         test("Moteur : rendu d'une frame et du Pokédex", SelfTest::frames);
+        test("Personnage : apparence, encodage et valeurs hors bornes", SelfTest::lookEncoding);
+        test("Personnage : 1er lancement → création, nom tapé, tenue changée", SelfTest::createCharacter);
+        test("Personnage : impossible de valider sans nom", SelfTest::creatorRequiresName);
+        test("Personnage : modification depuis le menu, puis annulation", SelfTest::editCharacter);
+        test("Personnage : le personnage est rechargé au lancement suivant", SelfTest::characterPersists);
         test("Export : sprites, cartes et CSV", () -> exportTo(home.resolve("export")));
 
         System.out.printf("%n%d réussi(s), %d échec(s)%n", passed, failures.size());
@@ -252,8 +261,18 @@ public final class SelfTest {
 
     // ------------------------------------------------------------------ moteur
 
+    /** Nouvelle partie vierge (sauvegarde effacée) pour isoler chaque test. */
+    private static Game freshGame() {
+        try {
+            Files.deleteIfExists(Storage.DIR.resolve("save-BPRE.properties"));
+        } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+        }
+        return new Game(data());
+    }
+
     private static Game game() {
-        Game g = new Game(data());
+        Game g = freshGame();
         g.push(new OverworldScene(g));
         return g;
     }
@@ -337,6 +356,129 @@ public final class SelfTest {
         g.push(new DexScene(g));
         BufferedImage dex = g.renderFrame();
         check(dex.getRGB(5, 5) != 0xFF000000, "Pokédex dessiné");
+    }
+
+    // ------------------------------------------------------------------ personnage
+
+    private static void lookEncoding() {
+        PlayerLook a = new PlayerLook(2, 3, 4, 1, 7, 2, 9, 5, 6);
+        eq(a, PlayerLook.decode(a.encode()), "aller-retour");
+        eq("2.3.4.1.7.2.9.5.6", a.encode(), "encodage");
+        check(PlayerLook.decode("abc") == null && PlayerLook.decode("1.2") == null && PlayerLook.decode(null) == null,
+                "les chaînes abîmées sont refusées");
+        PlayerLook clamped = new PlayerLook(99, -1, 0, 0, 0, 0, 0, 0, 0);
+        check(clamped.skin() < PlayerLook.SKIN_COLORS.length && clamped.hairStyle() >= 0, "valeurs ramenées dans les bornes");
+        eq(PlayerLook.HATS.length - 1, a.cycle(3, -2).hat(), "le choix boucle vers la fin");
+        eq(0, a.cycle(3, PlayerLook.HATS.length - 1).hat(), "le choix boucle vers le début");
+        Random r = new Random(5);
+        for (int i = 0; i < 200; i++) {
+            PlayerLook p = PlayerLook.random(r);
+            eq(p, PlayerLook.decode(p.encode()), "tenue aléatoire valide");
+        }
+    }
+
+    private static void tap(Game g, Button b) {
+        g.input().set(b, true);
+        g.simulateFrame();
+        g.input().set(b, false);
+        g.simulateFrame();
+    }
+
+    private static void typeText(Game g, String text) {
+        g.input().type(text);
+        for (int i = 0; i < 10; i++) g.simulateFrame();
+    }
+
+    private static void createCharacter() {
+        Game g = freshGame();
+        g.push(CharacterCreatorScene.firstScene(g));
+        check(g.top() instanceof CharacterCreatorScene, "le 1er lancement ouvre la création");
+        CharacterCreatorScene c = (CharacterCreatorScene) g.top();
+        check(c.isTypingName(), "la saisie du nom est active d'entrée");
+
+        typeText(g, "Ra7yan#\b\b");          // '#' refusé, puis 2 effacements → "Ra7y"
+        eq("Ra7y", c.name(), "saisie + effacement + caractère refusé");
+        typeText(g, "an Lefèvre\n");             // limité à 10 caractères, Entrée valide
+        eq("Ra7yan Lef", c.name(), "limite de 10 caractères");
+        check(!c.isTypingName(), "Entrée termine la saisie");
+        for (int i = 0; i < 10; i++) g.simulateFrame();
+        eq(1, c.row(), "on passe à la ligne suivante");
+
+        PlayerLook before = c.look();
+        tap(g, Button.RIGHT);                     // peau suivante
+        eq(Math.floorMod(before.skin() + 1, PlayerLook.SKIN_COLORS.length), c.look().skin(), "couleur de peau changée");
+        tap(g, Button.DOWN);
+        tap(g, Button.DOWN);
+        tap(g, Button.DOWN);                      // couvre-chef
+        tap(g, Button.LEFT);
+        eq(Math.floorMod(before.hat() - 1, PlayerLook.HATS.length), c.look().hat(), "couvre-chef changé");
+
+        BufferedImage img = g.renderFrame();
+        check(img.getRGB(50, 80) != img.getRGB(2, 80), "l'aperçu du personnage est dessiné");
+
+        tap(g, Button.START);                     // va sur « Terminer »
+        tap(g, Button.A);
+        for (int i = 0; i < 30; i++) g.simulateFrame();
+        check(g.top() instanceof OverworldScene, "après création, on arrive dans le monde");
+        eq("Ra7yan Lef", g.save.name, "nom sauvegardé");
+        eq(c.look(), g.save.look, "apparence sauvegardée");
+    }
+
+    private static void creatorRequiresName() {
+        Game g = freshGame();
+        g.push(CharacterCreatorScene.firstScene(g));
+        CharacterCreatorScene c = (CharacterCreatorScene) g.top();
+        typeText(g, "   \n");                   // que des espaces
+        check(!c.isTypingName(), "saisie terminée");
+        for (int i = 0; i < 10; i++) g.simulateFrame();
+        tap(g, Button.START);
+        tap(g, Button.A);
+        check(g.top() == c, "on reste sur la création");
+        check(c.isTypingName(), "retour à la saisie du nom");
+        check(!g.save.hasCharacter(), "rien n'est sauvegardé");
+    }
+
+    private static void editCharacter() {
+        Game g = game();
+        g.save.name = "Rayan";
+        g.save.look = PlayerLook.defaults();
+        OverworldScene w = world(g);
+        g.push(new StartMenuScene(g, w));
+        tap(g, Button.DOWN);                      // PERSO
+        tap(g, Button.A);
+        check(g.top() instanceof CharacterCreatorScene, "le menu ouvre la modification");
+        CharacterCreatorScene c = (CharacterCreatorScene) g.top();
+        check(!c.isTypingName(), "le nom existant n'est pas ressaisi");
+        for (int i = 0; i < 10; i++) g.simulateFrame();
+        tap(g, Button.DOWN);
+        tap(g, Button.RIGHT);                     // change la peau
+        check(!c.look().equals(PlayerLook.defaults()), "aperçu modifié");
+        tap(g, Button.B);                         // annuler
+        check(g.top() == w, "retour au monde");
+        eq(PlayerLook.defaults(), g.save.look, "l'annulation ne change pas la sauvegarde");
+
+        g.push(new CharacterCreatorScene(g, true));
+        for (int i = 0; i < 10; i++) g.simulateFrame();
+        tap(g, Button.DOWN);
+        tap(g, Button.RIGHT);
+        PlayerLook edited = ((CharacterCreatorScene) g.top()).look();
+        tap(g, Button.START);
+        tap(g, Button.A);
+        check(g.top() == w, "validation → retour au monde");
+        eq(edited, g.save.look, "la modification est sauvegardée");
+    }
+
+    private static void characterPersists() {
+        Game g = freshGame();
+        g.save.name = "Rayan";
+        g.save.look = new PlayerLook(4, 2, 7, 3, 1, 1, 6, 8, 13);
+        g.save.store();
+        Game again = new Game(data());
+        check(again.save.hasCharacter(), "personnage relu");
+        eq("Rayan", again.save.name, "nom relu");
+        eq(g.save.look, again.save.look, "apparence relue");
+        again.push(CharacterCreatorScene.firstScene(again));
+        check(again.top() instanceof OverworldScene, "pas de nouvelle création si le personnage existe");
     }
 
     private static void exportTo(Path dir) throws Exception {

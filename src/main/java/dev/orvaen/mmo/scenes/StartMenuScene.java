@@ -11,7 +11,7 @@ import java.awt.Graphics2D;
 /** Menu principal (touche X), en surimpression sur le monde. */
 public final class StartMenuScene implements Scene {
 
-    private static final String[] ITEMS = {"POKÉDEX", "CARTES", "SAUVER", "RETOUR"};
+    private static final String[] ITEMS = {"POKÉDEX", "PERSO", "CARTES", "SAUVER", "RETOUR"};
 
     private final Game game;
     private final OverworldScene world;
@@ -38,8 +38,9 @@ public final class StartMenuScene implements Scene {
         if (!in.pressed(Button.A)) return;
         switch (cursor) {
             case 0 -> game.replace(new DexScene(game));
-            case 1 -> game.replace(new MapListScene(game, world));
-            case 2 -> {
+            case 1 -> game.replace(new CharacterCreatorScene(game, true));
+            case 2 -> game.replace(new MapListScene(game, world));
+            case 3 -> {
                 world.rememberPosition();
                 game.save.store();
                 game.pop();
@@ -51,12 +52,14 @@ public final class StartMenuScene implements Scene {
 
     @Override
     public void render(Graphics2D g) {
-        int w = 84, x = Game.WIDTH - w - 2;
-        Ui.box(g, x, 2, w, 14 + ITEMS.length * 16);
+        int w = 84, x = Game.WIDTH - w - 2, top = 16;
+        Ui.box(g, x, 2, w, 30 + ITEMS.length * 16);
+        g.setFont(Ui.SMALL);
+        Ui.text(g, game.save.name == null ? "" : game.save.name, x + 10, 15, Ui.FRAME);
         g.setFont(Ui.FONT);
         for (int i = 0; i < ITEMS.length; i++) {
-            Ui.text(g, ITEMS[i], x + 18, 20 + i * 16);
+            Ui.text(g, ITEMS[i], x + 18, top + 20 + i * 16);
         }
-        Ui.cursor(g, x + 9, 20 + cursor * 16);
+        Ui.cursor(g, x + 9, top + 20 + cursor * 16);
     }
 }

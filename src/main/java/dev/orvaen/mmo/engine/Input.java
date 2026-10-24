@@ -13,6 +13,8 @@ public final class Input extends KeyAdapter {
     private final Map<Button, Boolean> live = new EnumMap<>(Button.class);
     private final Map<Button, Integer> held = new EnumMap<>(Button.class);
     private final Map<Button, Boolean> pressed = new EnumMap<>(Button.class);
+    private final StringBuilder pendingTyped = new StringBuilder();
+    private String frameTyped = "";
 
     public Input() {
         for (Button b : Button.values()) {
@@ -44,6 +46,18 @@ public final class Input extends KeyAdapter {
         if (b != null) live.put(b, true);
     }
 
+    /** Caractères tapés (saisie du nom) : '\b' = effacer, '\n' = valider, '\u001b' = Échap. */
+    @Override
+    public synchronized void keyTyped(KeyEvent e) {
+        char c = e.getKeyChar();
+        if (c != KeyEvent.CHAR_UNDEFINED && pendingTyped.length() < 32) pendingTyped.append(c);
+    }
+
+    /** Saisie programmatique (tests). */
+    public synchronized void type(String text) {
+        pendingTyped.append(text);
+    }
+
     @Override
     public synchronized void keyReleased(KeyEvent e) {
         Button b = map(e.getKeyCode());
@@ -57,6 +71,8 @@ public final class Input extends KeyAdapter {
 
     /** À appeler au début de chaque frame. */
     public synchronized void poll() {
+        frameTyped = pendingTyped.toString();
+        pendingTyped.setLength(0);
         for (Button b : Button.values()) {
             boolean down = live.get(b);
             int h = held.get(b);
@@ -67,6 +83,12 @@ public final class Input extends KeyAdapter {
 
     public synchronized void releaseAll() {
         for (Button b : Button.values()) live.put(b, false);
+        pendingTyped.setLength(0);
+    }
+
+    /** Texte tapé pendant cette frame. */
+    public String typed() {
+        return frameTyped;
     }
 
     public boolean down(Button b) { return held.get(b) > 0; }

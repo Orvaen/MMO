@@ -1,5 +1,7 @@
 package dev.orvaen.mmo.engine;
 
+import dev.orvaen.mmo.data.PlayerLook;
+
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -40,6 +42,8 @@ public final class Storage {
         public int x;
         public int y;
         public int facing;
+        public String name = "";
+        public PlayerLook look;
         public final Set<Integer> seen = new TreeSet<>();
         public final Set<Integer> caught = new TreeSet<>();
 
@@ -57,9 +61,16 @@ public final class Storage {
             s.x = intOf(p, "player.x", 0);
             s.y = intOf(p, "player.y", 0);
             s.facing = intOf(p, "player.facing", 0);
+            s.name = p.getProperty("player.name", "").trim();
+            s.look = PlayerLook.decode(p.getProperty("player.look"));
             parseSet(p.getProperty("dex.seen", ""), s.seen);
             parseSet(p.getProperty("dex.caught", ""), s.caught);
             return s;
+        }
+
+        /** Le personnage a-t-il déjà été créé ? */
+        public boolean hasCharacter() {
+            return look != null && !name.isBlank();
         }
 
         public boolean hasPosition() {
@@ -73,6 +84,8 @@ public final class Storage {
             p.setProperty("player.x", String.valueOf(x));
             p.setProperty("player.y", String.valueOf(y));
             p.setProperty("player.facing", String.valueOf(facing));
+            p.setProperty("player.name", name);
+            if (look != null) p.setProperty("player.look", look.encode());
             p.setProperty("dex.seen", join(seen));
             p.setProperty("dex.caught", join(caught));
             write(file, p, "Sauvegarde");

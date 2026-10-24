@@ -31,7 +31,7 @@ java -jar build/orvaen-mmo.jar
 ```
 
 Au premier lancement une fenêtre te demande ta ROM ; son chemin est mémorisé dans
-`~/.orvaen-mmo/config.properties`. Tu peux aussi la passer directement : `--rom chemin/vers/jeu.gba`.
+`~/.orvaen-mmo/config.properties`. Tu crées ensuite ton personnage (voir plus bas), puis la partie commence. Tu peux aussi la passer directement : `--rom chemin/vers/jeu.gba`.
 
 Avec Maven : `mvn package` puis `java -jar target/orvaen-mmo.jar`.
 
@@ -52,9 +52,25 @@ Le dossier `export/` est ignoré par git.
 | Se déplacer | Flèches ou ZQSD |
 | Valider (A) | Entrée, Espace, K |
 | Retour / courir (B) | Échap, Maj, L |
-| Menu (Pokédex, cartes, sauvegarde) | X |
+| Menu (Pokédex, personnage, cartes, sauvegarde) | X |
 | Liste de toutes les cartes (téléportation, outil de dev) | M |
 | Page précédente / suivante dans les listes | A / E, Page↑ / Page↓ |
+
+## Création du personnage
+
+Au début de chaque nouvelle partie, tu crées ton personnage avec un aperçu en direct qui tourne sur lui-même :
+
+- **Nom** (10 caractères, accents acceptés)
+- **Peau** : 6 teintes
+- **Coiffure** : courts, mi-longs, longs, queue, pics, rasés — et 12 couleurs de cheveux
+- **Couvre-chef** : casquette, bonnet à pompon, bandana, chapeau ou tête nue — 15 couleurs
+- **Haut** : t-shirt, veste, sweat ou débardeur — 15 couleurs
+- **Pantalon** et **chaussures** : 15 couleurs chacun
+- **Aléatoire** pour tirer une tenue au hasard
+
+Tu peux le modifier à tout moment via **X → PERSO** (Échap annule). Le personnage est dessiné par le moteur
+(aucun sprite de la ROM) et son apparence tient dans une courte chaîne (`PlayerLook`), prête à être
+envoyée aux autres joueurs dans le futur mode en ligne.
 
 ## Ce qui marche déjà
 
@@ -69,6 +85,7 @@ Le dossier `export/` est ignoré par git.
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
 - **Pokédex** : toutes les espèces de la ROM (sprite, types, statistiques), vues / capturées
+- **Personnage** : création et modification (nom, peau, coiffure, couvre-chef, tenue, couleurs)
 - Sauvegarde locale par jeu dans `~/.orvaen-mmo/save-<code>.properties`
 
 L'avatar du joueur, la capsule de capture et l'interface sont dessinés par le moteur (design original).
@@ -92,14 +109,14 @@ Les formats sont documentés dans les classes, d'après la décompilation
 
 ## Tests
 
-`build.sh` / `build.bat` lancent `SelfTest` (17 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
+`build.sh` / `build.bat` lancent `SelfTest` (22 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
 fabriquée par `SyntheticRom` : un faux Rouge Feu minuscule (2 espèces, 2 cartes, données inventées)
 qui exerce toute la chaîne — pointeurs, LZ77, texte, tilesets, warps, liaisons, rencontres, rendu,
-déplacements et combat — sans aucune donnée Nintendo.
+déplacements, combat et création de personnage — sans aucune donnée Nintendo.
 
 ## Feuille de route
 
-1. **Serveur en ligne** : serveur Java (sockets) qui synchronise positions et cartes, autres joueurs visibles
+1. **Serveur en ligne** : serveur Java (sockets) qui synchronise positions, cartes et apparences des personnages
 2. Sprites du joueur et des PNJ lus depuis la ROM (overworld), PNJ et panneaux des cartes
 3. Vrai système de combat : équipe, attaques, types, expérience (données d'attaques de la ROM)
 4. Surf, pêche, rencontres d'eau ; musique et cris
