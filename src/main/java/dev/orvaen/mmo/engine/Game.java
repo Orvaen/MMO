@@ -291,6 +291,7 @@ public final class Game {
         frame.setVisible(true);
         if (Storage.muted()) data.audio.toggleMute();
         data.audio.setMasterVolume(Storage.volume() / 100.0);
+        data.warmUp();                                   // lectures de la ROM en arrière-plan, avant d'en avoir besoin
         data.audio.start();
         // Synchronisation sur l'écran : sous Windows on attend la composition DWM après chaque image
         // (fiable en fenêtre) ; ailleurs on demande la V-Sync à Java2D ; sinon minuterie.
@@ -532,8 +533,8 @@ public final class Game {
         }
         drawVolume(out, cw);
         if (showFps) {
-            String fps = String.format("%.0f FPS · %d Hz · %s · rendu %.1f ms · pire écart %.1f ms",
-                    measuredFps, refreshHz, pacing, renderShown, worstShown);
+            String fps = String.format("%.0f FPS · %d Hz · %s · rendu %.1f ms · pire écart %.1f ms · son : %d coupure(s)",
+                    measuredFps, refreshHz, pacing, renderShown, worstShown, data.audio.underruns());
             out.setFont(HiUi.font(13, true));
             out.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             int tw = out.getFontMetrics().stringWidth(fps);

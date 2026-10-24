@@ -22,7 +22,9 @@ public final class AudioEngine {
 
     public static final int RATE = 44100;
     private static final double ENGINE_FPS = 59.7275;
-    private static final int CHUNK = 512;
+    private static final int CHUNK = 256;
+    /** Réserve de son d'avance (~90 ms) : le son ne grésille pas si le jeu a un petit à-coup (chargement…). */
+    private static final int LINE_FRAMES = 4096;
     private static final int MAX_VOICES = 40;
 
     private final Rom rom;
@@ -36,6 +38,7 @@ public final class AudioEngine {
     private final OutputFilter filter = new OutputFilter(RATE);
     private boolean muted;
     private volatile boolean running;
+    private float[] mixBuffer = new float[CHUNK * 2];
     private Thread thread;
 
     public AudioEngine(Rom rom) {
@@ -148,6 +151,13 @@ public final class AudioEngine {
         thread.start();
     }
 
+    private volatile int underruns;
+
+    /** Nombre de fois où le son a manqué de réserve depuis le lancement (grésillements). */
+    public int underruns() {
+        return underruns;
+    }
+
     public void shutdown() {
         running = false;
     }
@@ -157,7 +167,7 @@ public final class AudioEngine {
         SourceDataLine line;
         try {
             line = AudioSystem.getSourceDataLine(format);
-            line.open(format, CHUNK * 4 * 6);
+            line.open(format, LINE_FRAMES * 4);
             line.start();
         } catch (Exception | LinkageError e) {
             running = false;
@@ -173,6 +183,8 @@ public final class AudioEngine {
                 out[i * 2] = (byte) v;
                 out[i * 2 + 1] = (byte) (v >> 8);
             }
+            // réserve presque vide : le son a dû « trou » (compté, visible avec F3)
+            if (line.available() >= line.getBufferSize() - out.length) underruns++;
             line.write(out, 0, out.length);
         }
         line.drain();
@@ -184,7 +196,8 @@ public final class AudioEngine {
         java.util.Arrays.fill(buf, 0, frames * 2, 0f);
         double perFrame = RATE / ENGINE_FPS;
         int done = 0;
-        float[] tmp = new float[frames * 2];
+        if (mixBuffer.length < frames * 2) mixBuffer = new float[frames * 2];
+        float[] tmp = mixBuffer;
         while (done < frames) {
             if (frameAcc <= 0) {
                 engineFrame();

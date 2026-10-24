@@ -13,6 +13,25 @@ import dev.orvaen.mmo.world.MapRepository;
 /** Tout ce que le moteur a extrait de la ROM du joueur, au même endroit. */
 public final class GameData {
 
+    /** Valeur calculée une seule fois, au premier appel (sûr entre plusieurs fils d'exécution). */
+    private static final class Lazy<T> {
+        private final java.util.function.Supplier<T> make;
+        private volatile T value;
+
+        Lazy(java.util.function.Supplier<T> make) {
+            this.make = make;
+        }
+
+        T get() {
+            T v = value;
+            if (v != null) return v;
+            synchronized (this) {
+                if (value == null) value = make.get();
+                return value;
+            }
+        }
+    }
+
     public final Rom rom;
     public final SpeciesRepository species;
     public final MapRepository maps;
@@ -24,14 +43,15 @@ public final class GameData {
     public final ScriptTables scripts;
     public final dev.orvaen.mmo.audio.AudioEngine audio;
     public final dev.orvaen.mmo.audio.Songs songs;
-    private Trainers trainers;
-    private TitleGraphics title;
-    private dev.orvaen.mmo.battle.BattleData battle;
-    private dev.orvaen.mmo.battle.BattleGraphics battleGraphics;
-    private dev.orvaen.mmo.world.FieldEffects fieldEffects;
-    private dev.orvaen.mmo.battle.MoveAnimations moveAnimations;
-    private PokemonIcons icons;
-    private FollowerSprites followerSprites;
+    // Lu au premier besoin (chaque élément a son propre verrou : en lire un n'en bloque pas un autre)
+    private final Lazy<Trainers> trainers;
+    private final Lazy<TitleGraphics> title;
+    private final Lazy<dev.orvaen.mmo.battle.BattleData> battle;
+    private final Lazy<dev.orvaen.mmo.battle.BattleGraphics> battleGraphics;
+    private final Lazy<dev.orvaen.mmo.world.FieldEffects> fieldEffects;
+    private final Lazy<dev.orvaen.mmo.battle.MoveAnimations> moveAnimations;
+    private final Lazy<PokemonIcons> icons;
+    private final Lazy<FollowerSprites> followerSprites;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -47,54 +67,76 @@ public final class GameData {
         this.audio = new dev.orvaen.mmo.audio.AudioEngine(rom);
         this.songs = dev.orvaen.mmo.audio.Songs.of(rom.profile());
         this.player = new PlayerGraphics(rom);
+        this.trainers = new Lazy<>(() -> new Trainers(rom, species.count()));
+        this.title = new Lazy<>(() -> new TitleGraphics(rom));
+        this.battle = new Lazy<>(() -> new dev.orvaen.mmo.battle.BattleData(rom));
+        this.battleGraphics = new Lazy<>(() -> new dev.orvaen.mmo.battle.BattleGraphics(rom));
+        this.fieldEffects = new Lazy<>(() -> new dev.orvaen.mmo.world.FieldEffects(rom));
+        this.moveAnimations = new Lazy<>(() -> new dev.orvaen.mmo.battle.MoveAnimations(rom));
+        this.icons = new Lazy<>(() -> new PokemonIcons(rom));
+        this.followerSprites = new Lazy<>(FollowerSprites::fromConfig);
     }
 
     /** Images de l'écran titre (cherchées dans la ROM au premier appel). */
     public TitleGraphics titleGraphics() {
-        if (title == null) title = new TitleGraphics(rom);
-        return title;
+        return title.get();
     }
 
     /** Règles du combat : attaques, apprentissages, types, expérience (lues au premier appel). */
     public dev.orvaen.mmo.battle.BattleData battle() {
-        if (battle == null) battle = new dev.orvaen.mmo.battle.BattleData(rom);
-        return battle;
+        return battle.get();
     }
 
     /** Images du combat : fonds, boîte de texte, Poké Ball (lues au premier combat). */
     public dev.orvaen.mmo.battle.BattleGraphics battleGraphics() {
-        if (battleGraphics == null) battleGraphics = new dev.orvaen.mmo.battle.BattleGraphics(rom);
-        return battleGraphics;
+        return battleGraphics.get();
     }
 
     /** Animations d'attaque (scripts, images et sons de la ROM), lues au premier combat. */
     public dev.orvaen.mmo.battle.MoveAnimations moveAnimations() {
-        if (moveAnimations == null) moveAnimations = new dev.orvaen.mmo.battle.MoveAnimations(rom);
-        return moveAnimations;
+        return moveAnimations.get();
     }
 
     /** Petites icônes animées des Pokémon (le Pokémon qui suit le joueur). */
     public PokemonIcons icons() {
-        if (icons == null) icons = new PokemonIcons(rom);
-        return icons;
+        return icons.get();
     }
 
     /** Vrais sprites des Pokémon qui suivent (téléchargés une fois chez le joueur). */
     public FollowerSprites followerSprites() {
-        if (followerSprites == null) followerSprites = FollowerSprites.fromConfig();
-        return followerSprites;
+        return followerSprites.get();
     }
 
     /** Effets de terrain du monde (herbe haute qui bouge…). */
     public dev.orvaen.mmo.world.FieldEffects fieldEffects() {
-        if (fieldEffects == null) fieldEffects = new dev.orvaen.mmo.world.FieldEffects(rom);
-        return fieldEffects;
+        return fieldEffects.get();
     }
 
     /** Dresseurs de la ROM (cherchés au premier combat). */
     public Trainers trainers() {
-        if (trainers == null) trainers = new Trainers(rom, species.count());
-        return trainers;
+        return trainers.get();
+    }
+
+    /**
+     * Lit en arrière-plan ce qui servira plus tard (images du combat, animations d'attaque, effets de terrain…),
+     * pendant que le joueur est sur l'écran titre : pas d'à-coup au premier pas ni au premier combat.
+     */
+    public void warmUp() {
+        Thread t = new Thread(() -> {
+            try {
+                fieldEffects();
+                icons();
+                battle();
+                battleGraphics();
+                moveAnimations();
+                trainers();
+            } catch (RuntimeException ignored) {
+                // sera relu au besoin
+            }
+        }, "Préchargement de la ROM");
+        t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY);
+        t.start();
     }
 
     public String summary() {
