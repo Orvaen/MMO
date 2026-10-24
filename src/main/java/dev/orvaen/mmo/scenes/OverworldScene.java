@@ -13,11 +13,22 @@ import dev.orvaen.mmo.world.DoorAnims;
 import dev.orvaen.mmo.world.GameMap;
 import dev.orvaen.mmo.world.MapLayout;
 import dev.orvaen.mmo.world.MapRenderer;
+import dev.orvaen.mmo.world.ObjectEvent;
+import dev.orvaen.mmo.world.ObjectGraphics;
+import dev.orvaen.mmo.world.ScriptText;
+import dev.orvaen.mmo.world.SignEvent;
+import dev.orvaen.mmo.world.TileAnims;
+import dev.orvaen.mmo.world.Tileset;
 import dev.orvaen.mmo.world.Warp;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -64,6 +75,11 @@ public final class OverworldScene implements Scene {
     private int doorTick;
     private int doorStage = -1;         // étape affichée
     private Warp doorWarp;
+
+    // Personnages de la carte et tuiles animées
+    private final List<Npc> npcs = new ArrayList<>();
+    private final Map<String, int[]> animCells = new HashMap<>();
+    private Npc talking;
 
     // États divers
     private Direction autoStep;         // sortie automatique d'une porte
@@ -115,6 +131,8 @@ public final class OverworldScene implements Scene {
         animCounter++;
         if (popupTimer > 0) popupTimer--;
         if (messageTimer > 0) messageTimer--;
+        animateTiles();
+        for (Npc n : npcs) n.update(this::npcCanEnter, n == talking);
 
         if (doorPhase != DoorPhase.NONE) {
             updateDoor();
@@ -133,6 +151,7 @@ public final class OverworldScene implements Scene {
             game.push(new MapListScene(game, this));
             return;
         }
+        if (in.pressed(Button.A) && interact()) return;
         if (autoStep != null) {
             Direction d = autoStep;
             autoStep = null;
@@ -220,6 +239,7 @@ public final class OverworldScene implements Scene {
     }
 
     private boolean canEnter(GameMap m, int x, int y) {
+        if (m == map && npcAt(x, y) != null) return false;
         int block = m.layout.blockAt(x, y);
         if (MapLayout.collision(block) != 0) return false;
         int z = MapLayout.elevation(block);
@@ -422,6 +442,116 @@ public final class OverworldScene implements Scene {
         });
     }
 
+    // ------------------------------------------------------------------ personnages
+
+    /** Graphismes « variables » (choisis par les scripts) : pas affichables sans moteur de scripts. */
+    private static final int FIRST_VAR_GRAPHICS = 0xEF;
+
+    private void loadNpcs() {
+        npcs.clear();
+        talking = null;
+        for (ObjectEvent e : map.objects) {
+            if (!e.alwaysPresent() || e.graphicsId() >= FIRST_VAR_GRAPHICS) continue;
+            ObjectGraphics.Sprite sprite = game.data.objects.get(e.graphicsId());
+            if (sprite == null) continue;
+            npcs.add(new Npc(e, sprite, (long) map.key().hashCode() * 31 + e.localId()));
+        }
+    }
+
+    public List<Npc> npcs() {
+        return npcs;
+    }
+
+    private Npc npcAt(int x, int y) {
+        for (Npc n : npcs) if (n.occupies(x, y)) return n;
+        return null;
+    }
+
+    /** Un PNJ peut-il marcher sur cette case ? (carte, joueur, autres PNJ, warps) */
+    private boolean npcCanEnter(int x, int y) {
+        if (!map.layout.inBounds(x, y) || MapLayout.collision(map.layout.blockAt(x, y)) != 0) return false;
+        if (x == px && y == py) return false;
+        if (moving && x == px + facing.dx && y == py + facing.dy) return false;
+        if (map.warpAt(x, y).isPresent()) return false;
+        return npcAt(x, y) == null;
+    }
+
+    /** Comportement « comptoir » : on parle au vendeur par-dessus. */
+    private static final int BEHAVIOR_COUNTER = 0x80;
+
+    /** A face à un PNJ ou un panneau : il se tourne vers le joueur et parle. */
+    private boolean interact() {
+        int tx = px + facing.dx, ty = py + facing.dy;
+        Npc n = npcAt(tx, ty);
+        if (n == null && map.layout.inBounds(tx, ty) && map.behaviorAt(tx, ty) == BEHAVIOR_COUNTER) {
+            n = npcAt(tx + facing.dx, ty + facing.dy);
+        }
+        if (n != null) {
+            n.face(opposite(facing));
+            if (n.dialogue() == null) n.setDialogue(text(n.event.script()));
+            talking = n;
+            final Npc speaker = n;
+            game.push(new DialogueScene(game, n.dialogue(), () -> { if (talking == speaker) talking = null; }));
+            return true;
+        }
+        for (SignEvent s : map.signs) {
+            if (s.x() != tx || s.y() != ty || !s.readable()) continue;
+            boolean facingOk = switch (s.kind()) {
+                case 1 -> facing == Direction.UP;
+                case 2 -> facing == Direction.DOWN;
+                case 3 -> facing == Direction.RIGHT;
+                case 4 -> facing == Direction.LEFT;
+                default -> true;
+            };
+            if (!facingOk) continue;
+            List<String> pages = text(s.script());
+            if (pages.isEmpty()) continue;
+            game.push(new DialogueScene(game, pages, null));
+            return true;
+        }
+        return false;
+    }
+
+    private List<String> text(int script) {
+        String player = game.save.name == null || game.save.name.isBlank() ? "Dresseur" : game.save.name;
+        return ScriptText.firstMessage(game.data.rom, script, player, "RIVAL");
+    }
+
+    private static Direction opposite(Direction d) {
+        return switch (d) {
+            case DOWN -> Direction.UP;
+            case UP -> Direction.DOWN;
+            case LEFT -> Direction.RIGHT;
+            case RIGHT -> Direction.LEFT;
+        };
+    }
+
+    // ------------------------------------------------------------------ tuiles animées
+
+    /** Eau, fleurs… : recopie les frames dues et redessine les cases concernées des cartes affichées. */
+    private void animateTiles() {
+        List<TileAnims.Step> steps = game.data.tileAnims.tick();
+        if (steps.isEmpty()) return;
+        List<GameMap> shown = new ArrayList<>();
+        shown.add(map);
+        for (Connection c : map.connections) {
+            GameMap t = loadOrNull(c.targetGroup(), c.targetNum());
+            if (t != null) shown.add(t);
+        }
+        for (TileAnims.Step step : steps) {
+            TileAnims.Anim a = step.anim();
+            Set<Tileset> done = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+            for (GameMap m : shown) {
+                Tileset ts = m.layout.primary;
+                if (!game.data.tileAnims.appliesTo(ts, a)) continue;
+                if (done.add(ts)) game.data.tileAnims.apply(ts, step);
+                int[] cells = animCells.computeIfAbsent(m.key() + "#" + a.dest(),
+                        k -> game.data.renderer.cellsUsing(m.layout, a.dest(), a.dest() + a.tiles()));
+                if (cells.length > 0) game.data.renderer.redraw(m.layout, render(m), cells);
+            }
+        }
+    }
+
     /** Arrivée « avec écran noir » sur une carte (warp, téléportation, chargement). */
     public void enterMap(GameMap target, int x, int y) {
         boolean newPlace = map == null || !map.name.equals(target.name);
@@ -442,9 +572,11 @@ public final class OverworldScene implements Scene {
     /** Bascule de carte sans écran noir (liaisons extérieures). */
     private void switchMap(GameMap target, int x, int y) {
         boolean newPlace = map != null && !map.name.equals(target.name);
+        boolean changed = map != target;
         map = target;
         px = x;
         py = y;
+        if (changed) loadNpcs();
         if (newPlace) popupTimer = POPUP_FRAMES;
         render(target); // précharge
         for (Connection c : target.connections) {
@@ -669,6 +801,9 @@ public final class OverworldScene implements Scene {
         p.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
                 java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         p.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
+        // Personnages plus haut que le joueur : derrière lui
+        double interp = game.interpolation();
+        for (Npc n : npcs) if (n.exactY(interp) <= ey) drawNpc(g, n, originX, originY, zoom, interp);
         p.translate(Math.round(originX + ex * zoom), Math.round(originY + ey * zoom) + bob);
         p.scale(zoom, zoom);
         if (!hidden) avatar.drawOverworld(p, 0, 0, facing, step, hop, run);
@@ -680,6 +815,7 @@ public final class OverworldScene implements Scene {
             }
         }
         p.dispose();
+        for (Npc n : npcs) if (n.exactY(interp) > ey) drawNpc(g, n, originX, originY, zoom, interp);
 
         // Calque supérieur (cimes, toits) des cartes liées puis de la carte courante
         for (Connection c : map.connections) {
@@ -692,6 +828,23 @@ public final class OverworldScene implements Scene {
         world.dispose();
 
         drawHud(g, w, h);
+    }
+
+    /** Un PNJ, pieds en bas de sa case, calé au pixel de l'écran comme le joueur. */
+    private void drawNpc(Graphics2D g, Npc n, double originX, double originY, int zoom, double interp) {
+        BufferedImage img = n.frame();
+        double wx = n.exactX(interp) + (T - n.width()) / 2.0, wy = n.exactY(interp) + T - n.height();
+        Graphics2D q = (Graphics2D) g.create();
+        q.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        q.translate(Math.round(originX + wx * zoom), Math.round(originY + wy * zoom));
+        q.scale(zoom, zoom);
+        if (n.height() >= 32) {
+            q.setColor(new java.awt.Color(0, 0, 0, 60));
+            q.fillOval((n.width() - 10) / 2, n.height() - 4, 10, 4);
+        }
+        q.drawImage(img, 0, 0, null);
+        q.dispose();
     }
 
     /** Nom de la zone (en haut à gauche) et messages, en panneaux nets façon PokeMMO. */

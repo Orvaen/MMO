@@ -100,6 +100,8 @@ public final class MapRepository {
         return new GameMap(group, num, name, mapType, layout,
                 readWarps(rom.pointer(header + 0x04)),
                 readConnections(rom.pointer(header + 0x0C)),
+                readObjects(rom.pointer(header + 0x04)),
+                readSigns(rom.pointer(header + 0x04)),
                 profile);
     }
 
@@ -148,6 +150,37 @@ public final class MapRepository {
         for (int i = 0; i < count; i++) {
             int w = ptr + i * 8;
             out.add(new Warp(rom.s16(w), rom.s16(w + 2), rom.u8(w + 4), rom.u8(w + 5), rom.u8(w + 7), rom.u8(w + 6)));
+        }
+        return out;
+    }
+
+    /** Personnages de la carte : événements, compteur à +0, tableau à +4. */
+    private List<ObjectEvent> readObjects(int events) {
+        List<ObjectEvent> out = new ArrayList<>();
+        if (events < 0 || !rom.inRange(events, 0x14)) return out;
+        int count = rom.u8(events);
+        int ptr = rom.pointer(events + 0x04);
+        if (count == 0 || ptr < 0 || !rom.inRange(ptr, count * ObjectEvent.BYTES)) return out;
+        for (int i = 0; i < count; i++) {
+            int o = ptr + i * ObjectEvent.BYTES;
+            int range = rom.u8(o + 0x0A);
+            out.add(new ObjectEvent(rom.u8(o), rom.u8(o + 1), rom.s16(o + 4), rom.s16(o + 6), rom.u8(o + 8),
+                    rom.u8(o + 9), range & 0xF, range >> 4, rom.u16(o + 0x0C), rom.pointer(o + 0x10),
+                    rom.u16(o + 0x14)));
+        }
+        return out;
+    }
+
+    /** Panneaux : compteur à +3, tableau à +0x10. */
+    private List<SignEvent> readSigns(int events) {
+        List<SignEvent> out = new ArrayList<>();
+        if (events < 0 || !rom.inRange(events, 0x14)) return out;
+        int count = rom.u8(events + 3);
+        int ptr = rom.pointer(events + 0x10);
+        if (count == 0 || ptr < 0 || !rom.inRange(ptr, count * SignEvent.BYTES)) return out;
+        for (int i = 0; i < count; i++) {
+            int o = ptr + i * SignEvent.BYTES;
+            out.add(new SignEvent(rom.u16(o), rom.u16(o + 2), rom.u8(o + 5), rom.pointer(o + 8)));
         }
         return out;
     }

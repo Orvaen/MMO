@@ -17,6 +17,7 @@ import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.scenes.BattleScene;
 import dev.orvaen.mmo.scenes.CharacterCreatorScene;
 import dev.orvaen.mmo.scenes.DexScene;
+import dev.orvaen.mmo.scenes.DialogueScene;
 import dev.orvaen.mmo.scenes.Direction;
 import dev.orvaen.mmo.scenes.OverworldScene;
 import dev.orvaen.mmo.scenes.PlayerSprite;
@@ -69,6 +70,11 @@ public final class SelfTest {
         test("Moteur : sortie par une porte animée", SelfTest::doorExit);
         test("Portes : table d'animations retrouvée dans la ROM", SelfTest::doorTable);
         test("Course : frames de course de la ROM", SelfTest::runFrames);
+        test("PNJ : lus dans la ROM (graphismes, palette, drapeaux)", SelfTest::npcsLoaded);
+        test("PNJ : on ne traverse pas un PNJ", SelfTest::npcBlocks);
+        test("PNJ : A → il parle (texte du script, {PLAYER}, pages)", SelfTest::npcTalks);
+        test("Panneau : lisible de face uniquement", SelfTest::signReads);
+        test("Tuiles animées : les fleurs changent de frame", SelfTest::tileAnimation);
         test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
@@ -411,6 +417,84 @@ public final class SelfTest {
         g.input().set(Button.B, false);
         g.input().set(Button.DOWN, false);
         eq(1 + 10, frames, "frame de départ + 10 frames pour une case en courant");
+    }
+
+    private static void npcsLoaded() {
+        GameData d = data();
+        var a = d.maps.load(0, 0);
+        eq(2, a.objects.size(), "2 objets sur la carte A");
+        eq(1, a.signs.size(), "1 panneau");
+        check(d.objects.count() >= 41, "table des graphismes : " + d.objects.count());
+        check(d.objects.paletteCount() >= 3, "palettes d'objets : " + d.objects.paletteCount());
+        var sprite = d.objects.get(SyntheticRom.NPC_GRAPHICS);
+        check(sprite != null && sprite.walks(), "sprite de PNJ avec ses 9 frames");
+        eq(dev.orvaen.mmo.gfx.GbaGfx.bgr555ToArgb(SyntheticRom.NPC_COLOR), sprite.frames()[0].getRGB(6, 20),
+                "couleur de la palette 0x1103");
+        Game g = game();
+        OverworldScene w = world(g);
+        eq(1, w.npcs().size(), "le PNJ à drapeau (histoire) n'est pas là en début de partie");
+        eq(2, w.npcs().get(0).x(), "PNJ x");
+        eq(4, w.npcs().get(0).y(), "PNJ y");
+        eq(Direction.UP, w.npcs().get(0).facing(), "PNJ tourné vers le haut (FACE_UP)");
+        BufferedImage frame = g.renderWindow(960, 640);
+        boolean seen = false;
+        int cyan = dev.orvaen.mmo.gfx.GbaGfx.bgr555ToArgb(SyntheticRom.NPC_COLOR);
+        for (int y = 0; y < 640 && !seen; y += 2) for (int x = 0; x < 960 && !seen; x += 2) seen = frame.getRGB(x, y) == cyan;
+        check(seen, "le PNJ est dessiné");
+    }
+
+    private static void npcBlocks() {
+        Game g = game();
+        OverworldScene w = world(g);
+        w.enterMap(g.data.maps.load(0, 0), 2, 3);
+        hold(g, Button.DOWN, 40);
+        eq(3, w.playerY(), "bloqué par le PNJ en (2,4)");
+    }
+
+    private static void npcTalks() {
+        GameData d = data();
+        var npc = d.maps.load(0, 0).objects.get(0);
+        java.util.List<String> pages = dev.orvaen.mmo.world.ScriptText.firstMessage(d.rom, npc.script(), "Rayan", "Bleu");
+        eq(java.util.List.of("BONJOUR Rayan!\nBELLE JOURNEE.", "A PLUS TARD."), pages, "texte du msgbox");
+        Game g = game();
+        OverworldScene w = world(g);
+        w.enterMap(g.data.maps.load(0, 0), 2, 3);   // regarde vers le bas, le PNJ est en dessous
+        tap(g, Button.A);
+        check(g.top() instanceof DialogueScene, "la boîte de dialogue s'ouvre");
+        DialogueScene box = (DialogueScene) g.top();
+        tap(g, Button.A);                            // affiche la page en entier
+        check(box.pageComplete(), "A : page affichée d'un coup");
+        tap(g, Button.A);
+        eq(1, box.page(), "A : page suivante");
+        for (int i = 0; i < 4 && g.top() == box; i++) tap(g, Button.A);
+        check(g.top() == w, "dialogue fermé");
+        g.renderWindow(960, 640);
+    }
+
+    private static void signReads() {
+        Game g = game();
+        OverworldScene w = world(g);
+        w.enterMap(g.data.maps.load(0, 0), 3, 1);   // sous le panneau, regarde vers le bas
+        tap(g, Button.A);
+        check(g.top() == w, "de dos : rien");
+        tap(g, Button.UP);                           // se tourne sans avancer
+        eq(Direction.UP, w.facing(), "tourné vers le panneau");
+        tap(g, Button.A);
+        check(g.top() instanceof DialogueScene, "le panneau se lit de face");
+    }
+
+    private static void tileAnimation() {
+        GameData d = data();
+        check(d.tileAnims.anims().stream().anyMatch(a -> a.name().equals("Fleurs")), "animation des fleurs trouvée");
+        Game g = game();
+        OverworldScene w = world(g);                 // joueur en (1,2) : les fleurs sont en (0,0)
+        java.util.Set<Integer> colors = new java.util.HashSet<>();
+        for (int i = 0; i < 100; i++) {
+            g.simulateFrame();
+            BufferedImage img = g.renderFrame();
+            colors.add(img.getRGB(g.screenWidth() / 2 - 8 - 16 + 4, g.screenHeight() / 2 - 8 - 32 + 4));
+        }
+        eq(2, colors.size(), "les fleurs alternent entre deux couleurs : " + colors);
     }
 
     private static void runFrames() {

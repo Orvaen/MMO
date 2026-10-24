@@ -52,6 +52,41 @@ public final class TextCodec {
         return sb.toString().replaceAll("\\s+", " ").trim();
     }
 
+    private static final int SCROLL = 0xFA;     // \l : la ligne défile
+    private static final int PAGE = 0xFB;       // \p : nouvelle page
+
+    /**
+     * Lit un texte de dialogue en pages (une page = une boîte), retours à la ligne conservés.
+     * {@code {PLAYER}} est remplacé par {@code player}, {@code {RIVAL}} par {@code rival}.
+     */
+    public static java.util.List<String> dialogue(Rom rom, int offset, int maxLength, String player, String rival) {
+        java.util.List<String> pages = new java.util.ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        int end = Math.min(rom.size(), offset + maxLength);
+        for (int i = offset; i < end; i++) {
+            int c = rom.u8(i);
+            if (c == TERMINATOR) break;
+            if (c == NEWLINE || c == SCROLL) {
+                sb.append('\n');
+            } else if (c == PAGE) {
+                pages.add(sb.toString().trim());
+                sb.setLength(0);
+            } else if (c == PLACEHOLDER) {
+                int arg = i + 1 < end ? rom.u8(i + 1) : 0;
+                i++;
+                if (arg == 0x01) sb.append(player);
+                else if (arg == 0x06) sb.append(rival);
+            } else if (c == CONTROL) {
+                i += controlArgs(i + 1 < end ? rom.u8(i + 1) : 0);
+            } else if (TABLE[c] != null) {
+                sb.append(TABLE[c]);
+            }
+        }
+        if (!sb.toString().isBlank()) pages.add(sb.toString().trim());
+        pages.removeIf(String::isBlank);
+        return pages;
+    }
+
     public static String decodeChar(int code) {
         return TABLE[code & 0xFF];
     }

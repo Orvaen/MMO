@@ -57,7 +57,7 @@ Le dossier `export/` est ignoré par git.
 | Action | Touches |
 | --- | --- |
 | Se déplacer | Flèches ou ZQSD |
-| Valider (A) | Entrée, Espace, K |
+| Valider / parler / lire (A) | Entrée, Espace, K |
 | Retour / courir (B) | Échap, Maj, L |
 | Menu (Pokédex, personnage, cartes, sauvegarde) | X |
 | Liste de toutes les cartes (téléportation, outil de dev) | M |
@@ -120,6 +120,12 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   course avec les vraies frames de course de la ROM (B), un peu plus posée que sur GBA (10 frames par
   case au lieu de 8 ; réglable avec `move.runFrames` dans `~/.orvaen-mmo/config.properties`),
   nom de la zone à l'entrée
+- **PNJ** : les personnages de chaque carte, lus dans la ROM (sprite, palette, position, comportement :
+  regarder autour d'eux, errer dans leur zone, rester tournés…), qui bloquent le passage ; **A** face à
+  un PNJ : il se tourne vers toi et dit son texte (tiré de son script), page par page. Les panneaux se
+  lisent aussi. Les personnages d'histoire (qui apparaissent selon la progression) ne sont pas encore affichés
+- **Décor animé** : eau, courants, bords de plage et fleurs (Rouge Feu / Vert Feuille ; cascade et
+  bord de l'eau en plus sur Émeraude), au rythme du jeu d'origine
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
 - **Pokédex** : toutes les espèces de la ROM (sprite, types, statistiques), vues / capturées

@@ -18,10 +18,20 @@ public final class GameMap {
     public final MapLayout layout;
     public final List<Warp> warps;
     public final List<Connection> connections;
+    /** Personnages et objets posés sur la carte. */
+    public final List<ObjectEvent> objects;
+    /** Panneaux et éléments à lire. */
+    public final List<SignEvent> signs;
     private final GameProfile profile;
 
     public GameMap(int group, int num, String name, int mapType, MapLayout layout,
                    List<Warp> warps, List<Connection> connections, GameProfile profile) {
+        this(group, num, name, mapType, layout, warps, connections, List.of(), List.of(), profile);
+    }
+
+    public GameMap(int group, int num, String name, int mapType, MapLayout layout,
+                   List<Warp> warps, List<Connection> connections, List<ObjectEvent> objects,
+                   List<SignEvent> signs, GameProfile profile) {
         this.group = group;
         this.num = num;
         this.name = name;
@@ -29,6 +39,8 @@ public final class GameMap {
         this.layout = layout;
         this.warps = List.copyOf(warps);
         this.connections = List.copyOf(connections);
+        this.objects = List.copyOf(objects);
+        this.signs = List.copyOf(signs);
         this.profile = profile;
     }
 

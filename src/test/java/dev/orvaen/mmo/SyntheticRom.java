@@ -39,6 +39,7 @@ public final class SyntheticRom {
         buildMapsAndWild(primary, secondary);
         buildPlayerGraphics();
         buildDoorAnims();
+        buildTileAnims();
         return rom;
     }
 
@@ -77,11 +78,15 @@ public final class SyntheticRom {
         pal[0xf] = 0;
         int owPal = alloc(32);
         for (int i = 0; i < 16; i++) w16(owPal + i * 2, pal[i]);
-        int palTable = alloc(24);
+        int palTable = alloc(32);
         ptr(palTable, owPal);
         w16(palTable + 4, 0x1100);
         ptr(palTable + 8, owPal);
         w16(palTable + 12, 0x1101);
+        int npcPal = alloc(32);
+        w16(npcPal + 2, NPC_COLOR);
+        ptr(palTable + 16, npcPal);
+        w16(palTable + 20, 0x1103);
 
         byte[] frame0 = new byte[256], frame = new byte[256];
         for (byte[] f : new byte[][]{frame0, frame}) {
@@ -101,6 +106,7 @@ public final class SyntheticRom {
         int f2 = alloc(256);
         System.arraycopy(runFrame, 0, rom, f2, 256);
 
+        int boyInfo = -1;
         for (int tag : new int[]{0x1100, 0x1110}) {
             int images = alloc(18 * 8);
             for (int i = 0; i < 18; i++) {
@@ -115,7 +121,28 @@ public final class SyntheticRom {
             w16(info + 8, 16);
             w16(info + 10, 32);
             ptr(info + 0x1C, images);
+            if (boyInfo < 0) boyInfo = info;
         }
+
+        // PNJ : 9 frames 16x32 de couleur 1 (NPC_COLOR), et la table des graphismes d'objets
+        byte[] npcFrame = new byte[256];
+        for (int y = 8; y < 32; y++) for (int x = 4; x < 12; x++) setPixel(npcFrame, 2, x, y, 1);
+        int npcData = alloc(256);
+        System.arraycopy(npcFrame, 0, rom, npcData, 256);
+        int npcImages = alloc(9 * 8);
+        for (int i = 0; i < 9; i++) {
+            ptr(npcImages + i * 8, npcData);
+            w16(npcImages + i * 8 + 4, 0x100);
+        }
+        int npcInfo = alloc(0x24);
+        w16(npcInfo, 0xFFFF);
+        w16(npcInfo + 2, 0x1103);
+        w16(npcInfo + 8, 16);
+        w16(npcInfo + 10, 32);
+        ptr(npcInfo + 0x1C, npcImages);
+        int gfxTable = alloc(41 * 4);
+        ptr(gfxTable, boyInfo);
+        for (int i = 1; i < 41; i++) ptr(gfxTable + i * 4, npcInfo);
 
         byte[] pic = new byte[0x800];
         setPixel(pic, 8, 30, 12, 0xc);
@@ -224,6 +251,8 @@ public final class SyntheticRom {
         metatile(metatiles, 0, 1, 0, 0, 0);       // sol vert
         metatile(metatiles, 1, 2, 0, 0, 0);       // herbe haute (bleue)
         metatile(metatiles, 2, 1, 0, 2, 0);       // arbre : sol vert, cime bleue au-dessus du joueur
+        metatile(metatiles, FLOWER_METATILE, 508, 0, 0, 0); // fleurs animées (tuile 508)
+        for (int t = 508; t < 512; t++) fillTile(tiles, t, 1); // en VRAM : 1re frame des fleurs
 
         int attrs = alloc(640 * 4);
         w32(attrs + 4, 0x02 | (1 << 24));         // herbe haute + rencontres terrestres
@@ -237,6 +266,16 @@ public final class SyntheticRom {
         ptr(ts + 0x0C, metatiles);
         ptr(ts + 0x14, attrs);
         return ts;
+    }
+
+    public static final int FLOWER_METATILE = 9;
+
+    /** Animation des fleurs (Rouge Feu : 4 tuiles en 508, 5 frames) : frame n de couleur 1 + n % 2. */
+    private void buildTileAnims() {
+        int frames = alloc(5 * 128);
+        for (int f = 0; f < 5; f++) for (int t = 0; t < 4; t++) fillTile(frames, f * 4 + t, 1 + f % 2);
+        int table = alloc(5 * 4);
+        for (int f = 0; f < 5; f++) ptr(table + f * 4, frames + f * 128);
     }
 
     private int buildSecondaryTileset() {
@@ -284,6 +323,7 @@ public final class SyntheticRom {
         for (int i = 0; i < gridA.length; i++) gridA[i] = 0x3000;
         for (int x = 0; x < 6; x++) gridA[2 * 6 + x] = 0x3000 | 1;
         gridA[6 + 1] = 0x3000 | DOOR_METATILE; // porte animée sur le warp vers B
+        gridA[0] = 0x3000 | FLOWER_METATILE;   // fleurs en (0,0)
         gridA[5] = 0x3000 | 0x0400 | 2;
         gridA[4 * 6 + 3] = 0x3000 | 640;
         int layoutA = layout(6, 5, gridA, primary, secondary);
@@ -295,6 +335,39 @@ public final class SyntheticRom {
         int warpsA = alloc(8);
         warp(warpsA, 1, 1, 0, 0, 1);
         int eventsA = events(1, warpsA);
+        // PNJ en (2,4) tourné vers le haut, avec un texte ; un 2e, à drapeau (histoire), absent en début de partie
+        int hello = alloc(64);
+        text(hello, "BONJOUR @!\nBELLE JOURNEE.|A PLUS TARD.");
+        int script = alloc(16);
+        rom[script] = 0x6A;                       // lock
+        rom[script + 1] = 0x5A;                   // faceplayer
+        rom[script + 2] = 0x0F;                   // loadword 0, texte
+        rom[script + 3] = 0;
+        ptr(script + 4, hello);
+        rom[script + 8] = 0x09;                   // callstd MSGBOX_NPC
+        rom[script + 9] = 2;
+        rom[script + 10] = 0x6C;                  // release
+        rom[script + 11] = 0x02;                  // end
+        int objects = alloc(2 * 24);
+        object(objects, 1, NPC_GRAPHICS, 2, 4, 7, script, 0);
+        object(objects + 24, 2, NPC_GRAPHICS, 0, 4, 8, script, 0x0123);
+        rom[eventsA] = 2;
+        ptr(eventsA + 4, objects);
+        // Panneau en (3,0), lisible de face
+        int signText = alloc(32);
+        text(signText, "BOURG TEST");
+        int signScript = alloc(8);
+        rom[signScript] = 0x0F;
+        rom[signScript + 1] = 0;
+        ptr(signScript + 2, signText);
+        rom[signScript + 6] = 0x02;
+        int signs = alloc(12);
+        w16(signs, 3);
+        w16(signs + 2, 0);
+        rom[signs + 5] = 1;                       // lisible en regardant vers le haut
+        ptr(signs + 8, signScript);
+        rom[eventsA + 3] = 1;
+        ptr(eventsA + 0x10, signs);
         int warpsB = alloc(8);
         warp(warpsB, 2, 1, 0, 0, 0);
         int eventsB = events(1, warpsB);
@@ -396,6 +469,20 @@ public final class SyntheticRom {
         rom[o + 7] = (byte) group;
     }
 
+    public static final int NPC_GRAPHICS = 1;
+    public static final int NPC_COLOR = 0x7FE0; // cyan
+
+    private void object(int o, int localId, int gfx, int x, int y, int movement, int script, int flag) {
+        rom[o] = (byte) localId;
+        rom[o + 1] = (byte) gfx;
+        w16(o + 4, x);
+        w16(o + 6, y);
+        rom[o + 8] = 3;
+        rom[o + 9] = (byte) movement;
+        ptr(o + 0x10, script);
+        w16(o + 0x14, flag);
+    }
+
     private int events(int warpCount, int warps) {
         int o = alloc(0x14);
         rom[o + 1] = (byte) warpCount;
@@ -457,6 +544,16 @@ public final class SyntheticRom {
     private void text(int at, String s) {
         int i = at;
         for (int c = 0; c < s.length(); c++) {
+            char special = s.charAt(c);
+            if (special == '\n' || special == '|' || special == '@') { // retour à la ligne, page, {PLAYER}
+                if (special == '@') {
+                    rom[i++] = (byte) 0xFD;
+                    rom[i++] = 0x01;
+                } else {
+                    rom[i++] = (byte) (special == '|' ? 0xFB : 0xFE);
+                }
+                continue;
+            }
             String ch = String.valueOf(s.charAt(c));
             int code = -1;
             for (int k = 0; k < 0xF7; k++) {
