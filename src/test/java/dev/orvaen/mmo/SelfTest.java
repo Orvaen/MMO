@@ -87,6 +87,7 @@ public final class SelfTest {
         test("Animations d'attaque : scripts, images et sons de la ROM", SelfTest::moveAnimations);
         test("Pokémon : stats Gen 3, sauvegarde, ancien format complété", SelfTest::pokemonModel);
         test("Résumé : talents et natures de la ROM, EV / IV, fenêtre et barre d'équipe", SelfTest::summary);
+        test("Réglages : volumes général / musique / effets, son coupé, zoom (mémorisés)", SelfTest::options);
         test("Combat : dégâts, efficacité, statut, K.O., expérience, nouvelle attaque", SelfTest::battleEngine);
         test("Combat : capture, fuite, dresseur et remplacement après K.O.", SelfTest::battleActions);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
@@ -925,6 +926,19 @@ public final class SelfTest {
         a.playBgm(1);
         a.toggleMute();
         check(energy(a, 4410) < 1e-9, "F9 : son coupé");
+        // volumes séparés : la musique et les effets sonores ont chacun le leur
+        var b = new dev.orvaen.mmo.audio.AudioEngine(d.rom);
+        b.setEffectsVolume(0);
+        b.playSe(1);
+        check(energy(b, 11025) < 1e-6, "effets à 0 % : effet sonore muet");
+        b.playBgm(1);
+        check(energy(b, 11025) > 0.01, "… mais la musique joue");
+        var c = new dev.orvaen.mmo.audio.AudioEngine(d.rom);
+        c.setMusicVolume(0);
+        c.playBgm(1);
+        check(energy(c, 11025) < 1e-6, "musique à 0 % : musique muette");
+        c.playSe(1);
+        check(energy(c, 11025) > 0.01, "… mais l'effet sonore joue");
         // un seul canal carré : une nouvelle note coupe la précédente (sinon les fins de notes s'empilent)
         eq(1, dev.orvaen.mmo.audio.AudioProbe.maxSquareVoices(SyntheticRom.build()), "notes carrées en même temps");
     }
@@ -1295,6 +1309,37 @@ public final class SelfTest {
         g.simulateFrame();
         check(g.windowOpen(dev.orvaen.mmo.scenes.SummaryWindow.ID), "touche E : résumé de l'équipe");
         check(w != null, "monde");
+    }
+
+    private static void options() {
+        Game g = game();
+        g.renderWindow(1280, 720);
+        g.input().type("o");
+        g.simulateFrame();
+        check(g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "touche O : réglages");
+        var o = (dev.orvaen.mmo.scenes.OptionsWindow) g.windows().get(0);
+        g.renderWindow(1280, 720);
+        click(g, o.anchor("slider1"));                      // milieu de la piste « Musique »
+        int music = o.value(dev.orvaen.mmo.scenes.OptionsWindow.MUSIC);
+        check(music >= 45 && music <= 55, "musique à ~50 % : " + music);
+        eq(music, Storage.musicVolume(), "volume de la musique mémorisé");
+        click(g, o.anchor("slider2"));
+        check(Math.abs(Storage.effectsVolume() - 50) <= 5, "effets à ~50 % mémorisés : " + Storage.effectsVolume());
+        click(g, o.anchor("mute"));
+        check(g.data.audio.muted() && Storage.muted(), "interrupteur : son coupé (mémorisé)");
+        click(g, o.anchor("mute"));
+        check(!g.data.audio.muted() && !Storage.muted(), "interrupteur : son remis");
+        click(g, o.anchor("zoom3"));
+        eq(4, g.zoom(), "zoom ×4 choisi");
+        eq(4, Storage.zoom(), "zoom mémorisé");
+        click(g, o.anchor("zoom0"));
+        eq(0, g.zoomSetting(), "zoom automatique");
+        BufferedImage img = g.renderWindow(1280, 720);
+        check(img.getRGB(640, 360) != 0, "réglages dessinés");
+        click(g, o.anchor("close"));
+        check(!g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "× ferme les réglages");
+        Storage.setMusicVolume(100);
+        Storage.setEffectsVolume(100);
     }
 
     private static void click(Game g, java.awt.Point p) {

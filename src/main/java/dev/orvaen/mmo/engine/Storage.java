@@ -127,6 +127,38 @@ public final class Storage {
         write(CONFIG, p, "Configuration du moteur");
     }
 
+    /** Volume de la musique, en pourcents du volume général (100 % par défaut). */
+    public static int musicVolume() {
+        return percent("audio.music", 100);
+    }
+
+    public static void setMusicVolume(int percent) {
+        setPercent("audio.music", percent);
+    }
+
+    /** Volume des effets sonores (portes, attaques, menus…), en pourcents du volume général. */
+    public static int effectsVolume() {
+        return percent("audio.effects", 100);
+    }
+
+    public static void setEffectsVolume(int percent) {
+        setPercent("audio.effects", percent);
+    }
+
+    private static int percent(String key, int def) {
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(read(CONFIG).getProperty(key, String.valueOf(def)).trim())));
+        } catch (NumberFormatException e) {
+            return def;
+        }
+    }
+
+    private static void setPercent(String key, int percent) {
+        Properties p = read(CONFIG);
+        p.setProperty(key, String.valueOf(Math.max(0, Math.min(100, percent))));
+        write(CONFIG, p, "Configuration du moteur");
+    }
+
     /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
     public static RomCheck.Slot lastSlot() {
         String v = read(CONFIG).getProperty("rom.last", "");

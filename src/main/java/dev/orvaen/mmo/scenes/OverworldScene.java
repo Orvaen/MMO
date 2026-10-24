@@ -242,7 +242,7 @@ public final class OverworldScene implements Scene {
         game.openWindow(new SummaryWindow(game, slot));
     }
 
-    /** Start : menu. P / C / E : Pokédex / carte de dresseur / équipe (comme PokeMMO). Select : liste des cartes. */
+    /** Start : menu. P / C / E / O : Pokédex / carte de dresseur / équipe / réglages. Select : liste des cartes. */
     private boolean handleMenus(Input in) {
         if (in.pressed(Button.START)) {
             game.push(new StartMenuScene(game, this));
@@ -252,6 +252,7 @@ public final class OverworldScene implements Scene {
             if (c == 'p') game.toggleWindow(new DexWindow(game));
             if (c == 'c') game.toggleWindow(new TrainerCardWindow(game));
             if (c == 'e' && !game.save.party.isEmpty()) game.toggleWindow(new SummaryWindow(game, 0));
+            if (c == 'o') game.toggleWindow(new OptionsWindow(game));
         }
         if (in.pressed(Button.SELECT)) {
             game.push(new MapListScene(game, this));

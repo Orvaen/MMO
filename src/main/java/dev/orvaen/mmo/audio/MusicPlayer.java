@@ -73,6 +73,7 @@ final class MusicPlayer {
     boolean stopWhenSilent;
     boolean finished;
     boolean paused;
+    boolean soundEffect;               // effet sonore (réglé par le volume des effets, pas celui de la musique)
 
     MusicPlayer(Rom rom, AudioEngine engine, int songId, int header) {
         this.rom = rom;

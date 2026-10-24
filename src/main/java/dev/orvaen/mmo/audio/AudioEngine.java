@@ -35,6 +35,7 @@ public final class AudioEngine {
     private final List<MusicPlayer> effects = new ArrayList<>();
     private double frameAcc;
     private double master = 0.5;
+    private double music = 1.0, sounds = 1.0;          // part du volume général : musique, effets sonores
     private final OutputFilter filter = new OutputFilter(RATE);
     private boolean muted;
     private volatile boolean running;
@@ -92,7 +93,9 @@ public final class AudioEngine {
 
     public synchronized void playSe(int id) {
         MusicPlayer p = start(id);
-        if (p != null) effects.add(p);
+        if (p == null) return;
+        p.soundEffect = true;
+        effects.add(p);
     }
 
     /** Fanfare (objet reçu, Pokémon soigné…) : la musique s'interrompt le temps qu'elle se joue. */
@@ -122,6 +125,28 @@ public final class AudioEngine {
 
     public synchronized double masterVolume() {
         return master;
+    }
+
+    /** Volume de la musique (et des fanfares), de 0 à 1, en part du volume général. */
+    public synchronized void setMusicVolume(double v) {
+        music = Math.max(0, Math.min(1, v));
+    }
+
+    public synchronized double musicVolume() {
+        return music;
+    }
+
+    /** Volume des effets sonores (portes, attaques, menus…), de 0 à 1, en part du volume général. */
+    public synchronized void setEffectsVolume(double v) {
+        sounds = Math.max(0, Math.min(1, v));
+    }
+
+    public synchronized double effectsVolume() {
+        return sounds;
+    }
+
+    public synchronized void setMuted(boolean m) {
+        muted = m;
     }
 
     public synchronized boolean toggleMute() {
@@ -231,7 +256,8 @@ public final class AudioEngine {
         for (Iterator<Voice> it = voices.iterator(); it.hasNext(); ) {
             Voice v = it.next();
             MusicPlayer owner = ownerOf(v);
-            v.frame(RATE, master * (owner == null ? 1 : owner.volume));
+            double part = owner != null && owner.soundEffect ? sounds : music;
+            v.frame(RATE, master * part * (owner == null ? 1 : owner.volume));
             if (v.done) it.remove();
         }
         if (owners.size() > 64) owners.values().removeIf(p -> p.finished && voicesOf(p) == 0);

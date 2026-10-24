@@ -189,6 +189,17 @@ public final class Game {
         return Math.max(2, Math.min(8, (int) Math.round(viewHeight / 256.0)));
     }
 
+    /** Zoom choisi par le joueur (0 : automatique). */
+    public int zoomSetting() {
+        return zoomSetting;
+    }
+
+    /** Choisit le zoom (0 : automatique), mémorisé. */
+    public void setZoomSetting(int z) {
+        zoomSetting = Math.max(0, Math.min(8, z));
+        Storage.setZoom(zoomSetting);
+    }
+
     /** Zoom suivant / précédent (touches + et -, Ctrl + molette), mémorisé. */
     public void adjustZoom(int delta) {
         int z = Math.max(1, Math.min(8, zoom() + delta));
@@ -295,6 +306,8 @@ public final class Game {
         frame.setVisible(true);
         if (Storage.muted()) data.audio.toggleMute();
         data.audio.setMasterVolume(Storage.volume() / 100.0);
+        data.audio.setMusicVolume(Storage.musicVolume() / 100.0);
+        data.audio.setEffectsVolume(Storage.effectsVolume() / 100.0);
         data.warmUp();                                   // lectures de la ROM en arrière-plan, avant d'en avoir besoin
         data.audio.start();
         // Synchronisation sur l'écran : sous Windows on attend la composition DWM après chaque image

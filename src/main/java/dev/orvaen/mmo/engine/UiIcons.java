@@ -16,7 +16,8 @@ import java.awt.geom.RoundRectangle2D;
  */
 public final class UiIcons {
 
-    public enum Icon { CARD, BARS, HEXAGON, BOLT, BALL, HASH, TAG, LEAF, STAR, PERSON, SPARK, ARROW_UP, BAG, HEART }
+    public enum Icon { CARD, BARS, HEXAGON, BOLT, BALL, HASH, TAG, LEAF, STAR, PERSON, SPARK, ARROW_UP, BAG, HEART,
+        SPEAKER, MUTE, NOTE, GEAR, SCREEN }
 
     private UiIcons() {
     }
@@ -109,6 +110,47 @@ public final class UiIcons {
                 g.draw(new RoundRectangle2D.Double(2, 5.5, 12, 9, 3, 3));
                 g.draw(new Arc2D.Double(5, 2, 6, 7, 0, 180, Arc2D.OPEN));
                 g.draw(new Line2D.Double(2, 9.5, 14, 9.5));
+            }
+            case SPEAKER, MUTE -> {                   // volume / son coupé
+                Path2D p = new Path2D.Double();
+                p.moveTo(1.5, 6);
+                p.lineTo(4.5, 6);
+                p.lineTo(8.5, 2.5);
+                p.lineTo(8.5, 13.5);
+                p.lineTo(4.5, 10);
+                p.lineTo(1.5, 10);
+                p.closePath();
+                g.fill(p);
+                if (icon == Icon.SPEAKER) {
+                    g.draw(new Arc2D.Double(6, 5, 5, 6, -55, 110, Arc2D.OPEN));
+                    g.draw(new Arc2D.Double(5.5, 2.5, 9, 11, -55, 110, Arc2D.OPEN));
+                } else {
+                    g.draw(new Line2D.Double(10.5, 5.5, 14.5, 10.5));
+                    g.draw(new Line2D.Double(14.5, 5.5, 10.5, 10.5));
+                }
+            }
+            case NOTE -> {                            // musique
+                g.fill(new Ellipse2D.Double(1.5, 10.5, 5, 4));
+                g.fill(new Ellipse2D.Double(9, 8.5, 5, 4));
+                g.draw(new Line2D.Double(6.2, 12.3, 6.2, 3));
+                g.draw(new Line2D.Double(13.7, 10.3, 13.7, 1.5));
+                g.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(new Line2D.Double(6.2, 3, 13.7, 1.5));
+            }
+            case GEAR -> {                            // réglages
+                g.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                for (int i = 0; i < 8; i++) {
+                    double a = Math.toRadians(i * 45);
+                    g.draw(new Line2D.Double(8 + 5 * Math.cos(a), 8 + 5 * Math.sin(a), 8 + 6.6 * Math.cos(a), 8 + 6.6 * Math.sin(a)));
+                }
+                g.setStroke(new BasicStroke(1.8f));
+                g.draw(new Ellipse2D.Double(3.4, 3.4, 9.2, 9.2));
+                g.fill(new Ellipse2D.Double(6.2, 6.2, 3.6, 3.6));
+            }
+            case SCREEN -> {                          // affichage
+                g.draw(new RoundRectangle2D.Double(1.5, 2.5, 13, 9, 2.5, 2.5));
+                g.draw(new Line2D.Double(8, 11.5, 8, 14));
+                g.draw(new Line2D.Double(5, 14, 11, 14));
             }
             case HEART -> {                           // PV
                 Path2D p = new Path2D.Double();
