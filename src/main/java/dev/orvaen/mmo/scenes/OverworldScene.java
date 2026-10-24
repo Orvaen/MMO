@@ -428,7 +428,7 @@ public final class OverworldScene implements Scene {
         onStep();
         // Direction toujours maintenue : on enchaîne le pas suivant dans la même frame,
         // sans image d'arrêt entre deux cases (c'est ce qui donnait l'effet saccadé).
-        if (!moving && !game.isFading() && game.top() == this && autoStep == null) {
+        if (!moving && vm == null && !game.isFading() && game.top() == this && autoStep == null) {
             Direction dir = Direction.held(in);
             if (dir == facing) tryMove(dir, in.down(Button.B));
         }
@@ -687,7 +687,7 @@ public final class OverworldScene implements Scene {
             List<String> pages = dev.orvaen.mmo.rom.TextCodec.dialogue(game.data.rom, textPtr, 1024, code -> switch (code) {
                 case 0x01 -> player;
                 case 0x02, 0x03, 0x04 -> vm == null ? "" : vm.buffer(code - 2);
-                case 0x06 -> "RIVAL";
+                case 0x06 -> rivalName();
                 default -> "";
             });
             Npc who = speaker;
@@ -810,6 +810,42 @@ public final class OverworldScene implements Scene {
 
         @Override public boolean battleBusy() { return battling; }
         @Override public void showMonPic(int species) { monPic = species; }
+
+        @Override
+        public void special(int id, int arg) {
+            if (game.data.rom.profile() != dev.orvaen.mmo.rom.GameProfile.FIRERED_LEAFGREEN) return;
+            if (id == SPECIAL_CHANGE_NICKNAME_FRLG) {
+                var party = game.save.party;
+                if (party.isEmpty()) return;
+                int slot = arg >= 0 && arg < party.size() ? arg : party.size() - 1;
+                int species = party.get(slot)[0];
+                naming = true;
+                game.fadeScreen(false);
+                game.push(new NamingScene(game, "Surnom de " + speciesName(species), speciesName(species),
+                        game.data.species.frontSprite(species), name -> {
+                            while (game.save.partyNames.size() < party.size()) game.save.partyNames.add("");
+                            game.save.partyNames.set(slot, name.equals(speciesName(species)) ? "" : name);
+                            naming = false;
+                        }));
+            }
+        }
+
+        @Override public boolean stateBusy() { return naming; }
+
+        @Override
+        public int specialVar(int id) {
+            boolean frlg = game.data.rom.profile() == dev.orvaen.mmo.rom.GameProfile.FIRERED_LEAFGREEN;
+            if (frlg && (id == SPECIAL_FACING_FRLG_1 || id == SPECIAL_FACING_FRLG_2)) return facing.ordinal() + 1;
+            return 0;
+        }
+
+        @Override
+        public String partyName(int slot) {
+            var party = game.save.party;
+            if (slot < 0 || slot >= party.size()) return "";
+            String n = slot < game.save.partyNames.size() ? game.save.partyNames.get(slot) : "";
+            return n == null || n.isBlank() ? speciesName(party.get(slot)[0]) : n;
+        }
         @Override public void hideMonPic() { monPic = -1; }
 
         @Override
@@ -886,6 +922,16 @@ public final class OverworldScene implements Scene {
             return true;
         }
         return false;
+    }
+
+    // Fonctions spéciales de Rouge Feu / Vert Feuille (n° dans la table gSpecials de la ROM)
+    private static final int SPECIAL_CHANGE_NICKNAME_FRLG = 158;
+    private static final int SPECIAL_FACING_FRLG_1 = 287, SPECIAL_FACING_FRLG_2 = 426;
+    private boolean naming;
+
+    private String rivalName() {
+        String r = game.save.rivalName;
+        return r == null || r.isBlank() ? "Blue" : r;
     }
 
     // Repère du dernier rendu (pour placer les bulles de dialogue)

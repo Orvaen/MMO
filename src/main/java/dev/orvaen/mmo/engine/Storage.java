@@ -124,6 +124,10 @@ public final class Storage {
         public boolean eventsReady;
         /** Équipe : espèce et niveau (le système de combat complet viendra ensuite). */
         public final java.util.List<int[]> party = new java.util.ArrayList<>();
+        /** Surnoms de l'équipe (vide : nom de l'espèce), dans le même ordre que {@link #party}. */
+        public final java.util.List<String> partyNames = new java.util.ArrayList<>();
+        /** Nom du rival, choisi pendant l'accueil du Professeur. */
+        public String rivalName = "";
         public final Set<Integer> seen = new TreeSet<>();
         public final Set<Integer> caught = new TreeSet<>();
 
@@ -167,6 +171,8 @@ public final class Storage {
                 }
             }
             s.eventsReady = Boolean.parseBoolean(p.getProperty("event.ready", "false"));
+            s.rivalName = p.getProperty("rival.name", "").trim();
+            for (String n : p.getProperty("party.names", "").split("\\|", -1)) s.partyNames.add(n);
             for (String m : p.getProperty("party", "").split(",")) {
                 String[] parts = m.split(":");
                 try {
@@ -224,6 +230,9 @@ public final class Storage {
                 pt.append(m[0]).append(':').append(m[1]);
             }
             p.setProperty("party", pt.toString());
+            while (partyNames.size() < party.size()) partyNames.add("");
+            p.setProperty("party.names", String.join("|", partyNames.subList(0, party.size())));
+            p.setProperty("rival.name", rivalName);
             p.setProperty("dex.seen", join(seen));
             p.setProperty("dex.caught", join(caught));
             write(file, p, "Sauvegarde");

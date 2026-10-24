@@ -48,6 +48,12 @@ public final class ScriptVM {
         void wildBattle(int species, int level);
         boolean battleBusy();
         void showMonPic(int species);
+        /** Fonction spéciale du jeu (renommer un Pokémon…) ; {@code arg} = VAR_0x8004. */
+        void special(int id, int arg);
+        /** Une fonction spéciale attend encore le joueur (écran de nom…) : waitstate bloque. */
+        boolean stateBusy();
+        int specialVar(int id);
+        String partyName(int slot);
         void hideMonPic();
         String speciesName(int species);
         int playerGender();
@@ -60,7 +66,7 @@ public final class ScriptVM {
     public static final int VAR_RESULT = 0x800D, VAR_FACING = 0x800C, VAR_LAST_TALKED = 0x800F;
     private static final int TRAINER_FLAGS = 0x500;
 
-    private enum Wait { NONE, PRINT, BUTTON, MOVEMENT, DELAY, CHOICE, FADE, BATTLE, DOOR }
+    private enum Wait { NONE, PRINT, BUTTON, MOVEMENT, DELAY, CHOICE, FADE, BATTLE, DOOR, STATE }
 
     private final Rom rom;
     private final Host host;
@@ -187,6 +193,9 @@ public final class ScriptVM {
             case DOOR -> {
                 if (host.doorBusy()) return false;
             }
+            case STATE -> {
+                if (host.stateBusy()) return false;
+            }
         }
         wait = Wait.NONE;
         return true;
@@ -226,7 +235,8 @@ public final class ScriptVM {
         int at = pc;
         int op = u8();
         switch (op) {
-            case 0x00, 0x01, 0x27, 0x2d, 0x2e, 0x30, 0x32, 0x35, 0x66, 0x69, 0x6a, 0x6b, 0x6c, 0x72, 0x76 -> {
+            case 0x27 -> block(Wait.STATE, 0);                                  // waitstate
+            case 0x00, 0x01, 0x2d, 0x2e, 0x30, 0x32, 0x35, 0x66, 0x69, 0x6a, 0x6b, 0x6c, 0x72, 0x76 -> {
                 if (op == 0x66) block(Wait.PRINT, 0);      // waitmessage
                 if (op == 0x76) host.hideMonPic();        // hidemonpic
                 if (op == 0x6b || op == 0x6c) host.closeMessage(); // release(all) : la boîte se ferme
@@ -267,8 +277,8 @@ public final class ScriptVM {
             case 0x1a -> { int d = u16(); varSet(d, varGet(u16())); }          // setorcopyvar
             case 0x21 -> { int v = u16(); setCompare(varGet(v), u16()); }      // compare_var_to_value
             case 0x22 -> { int a = u16(); setCompare(varGet(a), varGet(u16())); }
-            case 0x25 -> pc += 2;                                               // special : ignoré
-            case 0x26 -> { varSet(u16(), 0); pc += 2; }                         // specialvar → 0
+            case 0x25 -> host.special(u16(), special[4]);                       // special
+            case 0x26 -> { int out = u16(); varSet(out, host.specialVar(u16())); } // specialvar
             case 0x28 -> block(Wait.DELAY, Math.max(1, varGet(u16())));
             case 0x29 -> save.flags.set(varGet(u16()));
             case 0x2a -> save.flags.clear(varGet(u16()));
@@ -333,6 +343,7 @@ public final class ScriptVM {
                 pc += 11;
                 if (save.party.size() < 6) {
                     save.party.add(new int[]{species, level});
+                    while (save.partyNames.size() < save.party.size()) save.partyNames.add("");
                     save.caught.add(species);
                     save.seen.add(species);
                     varSet(VAR_RESULT, 0);
@@ -343,7 +354,8 @@ public final class ScriptVM {
             case 0x7a -> pc += 2;
             case 0x7d -> { int i = u8(); strings[Math.min(2, i)] = host.speciesName(varGet(u16())); }
             case 0x7e -> { int i = u8(); strings[Math.min(2, i)] = save.party.isEmpty() ? "" : host.speciesName(save.party.get(0)[0]); }
-            case 0x7f, 0x80, 0x81, 0x82, 0x84 -> { int i = u8(); u16(); strings[Math.min(2, i)] = ""; }
+            case 0x7f -> { int i = u8(); strings[Math.min(2, i)] = host.partyName(varGet(u16())); }
+            case 0x80, 0x81, 0x82, 0x84 -> { int i = u8(); u16(); strings[Math.min(2, i)] = ""; }
             case 0x83 -> { int i = u8(); strings[Math.min(2, i)] = String.valueOf(varGet(u16())); }
             case 0x85 -> { int i = u8(); int ptr = u32ptr(); strings[Math.min(2, i)] = ptr < 0 ? "" : dev.orvaen.mmo.rom.TextCodec.read(rom, ptr, 64); }
             case 0x8f -> { int n = varGet(u16()); varSet(VAR_RESULT, n <= 0 ? 0 : rng.nextInt(n)); }

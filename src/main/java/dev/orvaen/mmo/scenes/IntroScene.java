@@ -23,6 +23,7 @@ import java.util.List;
 public final class IntroScene implements Scene {
 
     private static final int PIC_PROFESSOR_FRLG = 132;
+    private static final int PIC_RIVAL_FRLG = 106;
     private static final int SHOWN_SPECIES = 25;
 
     private final Game game;
@@ -30,6 +31,8 @@ public final class IntroScene implements Scene {
     private final BufferedImage professor;
     private final BufferedImage pokemon;
     private final BufferedImage player;
+    private final BufferedImage rival;
+    private int phase;          // 0 : présentation, 1 : le rival, 2 : départ
     private int frame;
     private int pageFrame;
     private int lastPage;
@@ -41,14 +44,22 @@ public final class IntroScene implements Scene {
         this.professor = frlg ? PlayerGraphics.trainerPic(game.data.rom, PIC_PROFESSOR_FRLG) : null;
         this.pokemon = SHOWN_SPECIES < game.data.species.count() ? game.data.species.frontSprite(SHOWN_SPECIES) : null;
         this.player = new PlayerSprite(game.data.player, game.save.look).front();
-        String name = game.save.name == null || game.save.name.isBlank() ? "Dresseur" : game.save.name;
-        String region = frlg ? "Kanto" : "Hoenn";
+        this.rival = frlg ? PlayerGraphics.trainerPic(game.data.rom, PIC_RIVAL_FRLG) : null;
+        String name = playerName();
         box.show(List.of(
                 "Bonjour ! Bienvenue dans le monde des Pokémon !",
                 "On m'appelle le Professeur. J'étudie les Pokémon depuis toujours.",
                 "Ce monde est peuplé de créatures fascinantes : les Pokémon.\nCertains vivent avec nous, d'autres font équipe avec les dresseurs.",
-                "Et toi, " + name + ", ton voyage à travers " + region + " commence aujourd'hui.",
-                "Des rencontres, des combats et des amis t'attendent.\nAllez, en route !"), null);
+                "Et toi, tu es " + name + ", c'est bien ça ?"), null);
+    }
+
+    private String playerName() {
+        return game.save.name == null || game.save.name.isBlank() ? "Dresseur" : game.save.name;
+    }
+
+    /** Page affichée (0-3 : présentation, 4 : rival, 5+ : départ) pour choisir les images. */
+    private int step() {
+        return phase == 0 ? box.page() : phase == 1 ? 4 : 5;
     }
 
     @Override
@@ -60,7 +71,24 @@ public final class IntroScene implements Scene {
             lastPage = box.page();
             pageFrame = 0;
         }
-        if (!leaving && box.takeButton()) {
+        if (leaving || !box.takeButton()) return;
+        if (phase == 0) {
+            phase = 1;
+            pageFrame = 0;
+            box.show(List.of("Voici mon petit-fils. Vous êtes rivaux depuis que vous êtes tout petits.",
+                    "… Euh, comment s'appelle-t-il déjà ?"), null);
+        } else if (phase == 1) {
+            game.push(new NamingScene(game, "Nom du rival", "Blue", rival, n -> {
+                game.save.rivalName = n;
+                game.save.store();
+                phase = 2;
+                pageFrame = 0;
+                String region = game.data.rom.profile() == GameProfile.FIRERED_LEAFGREEN ? "Kanto" : "Hoenn";
+                box.show(List.of("Ah oui ! Il s'appelle " + n + " !",
+                        playerName() + ", ton voyage à travers " + region + " commence aujourd'hui.",
+                        "Des rencontres, des combats et des amis t'attendent.\nAllez, en route !"), null);
+            }));
+        } else {
             leaving = true;
             box.close();
             game.fadeThen(() -> game.replace(new OverworldScene(game)));
@@ -84,7 +112,7 @@ public final class IntroScene implements Scene {
         g.setColor(new Color(0, 0, 0, 60));
         g.fill(new Ellipse2D.Double(cx - 120 * s, cy + 100 * s, 240 * s, 36 * s));
 
-        int page = box.isOpen() ? box.page() : 4;
+        int page = step();
         double appear = Math.min(1, pageFrame / 18.0);
         double size = Math.floor(3 * s) * 64;
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
@@ -94,7 +122,10 @@ public final class IntroScene implements Scene {
             if (professor != null) draw(g, professor, cx - 150 * s, cy + 118 * s, size, 1);
             if (pokemon != null) draw(g, pokemon, cx + 150 * s, cy + 118 * s, size * 0.8, appear);
         }
-        if (page >= 3 && player != null) draw(g, player, cx, cy + 118 * s, size, page == 3 ? appear : 1);
+        if (page == 3 && player != null) draw(g, player, cx, cy + 118 * s, size, appear);
+        if (page == 4 && rival != null) draw(g, rival, cx, cy + 118 * s, size, appear);
+        if (page == 4 && rival == null && professor != null) draw(g, professor, cx, cy + 118 * s, size, 1);
+        if (page >= 5 && player != null) draw(g, player, cx, cy + 118 * s, size, 1);
         box.render(g, w, h);
     }
 

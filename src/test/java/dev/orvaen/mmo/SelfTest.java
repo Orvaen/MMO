@@ -618,9 +618,10 @@ public final class SelfTest {
         Game g = game();
         OverworldScene w = world(g);
         w.enterMap(g.data.maps.load(0, 0), 4, 4);
-        hold(g, Button.UP, 10);                      // (4,4) → (4,3) : déclencheur
+        hold(g, Button.UP, 30);                      // (4,4) → (4,3) : déclencheur, touche toujours enfoncée
         check(w.scriptRunning(), "le script de la case se lance");
         for (int i = 0; i < 40; i++) g.simulateFrame();
+        eq(3, w.playerY(), "le joueur s'arrête sur la case (pas de pas en plus pendant la scène)");
         eq(3, w.playerX(), "le script a fait reculer le joueur d'un pas à gauche");
         eq(1, (int) g.save.vars.getOrDefault(SyntheticRom.TRIGGER_VAR, 0), "variable posée par le script");
         check(w.messageBox().isOpen(), "message affiché");
@@ -922,10 +923,19 @@ public final class SelfTest {
         for (int i = 0; i < 30; i++) g.simulateFrame();
         check(g.top() instanceof dev.orvaen.mmo.scenes.IntroScene, "nouvelle partie : le Professeur accueille le joueur");
         g.renderWindow(1280, 800);
-        for (int i = 0; i < 12 && !(g.top() instanceof OverworldScene); i++) {
-            tap(g, Button.A);
+        boolean namedRival = false;
+        for (int i = 0; i < 20 && !(g.top() instanceof OverworldScene); i++) {
+            if (g.top() instanceof dev.orvaen.mmo.scenes.NamingScene) {
+                g.renderWindow(1280, 800);
+                g.input().type("Régis\n");
+                namedRival = true;
+            } else {
+                tap(g, Button.A);
+            }
             for (int f = 0; f < 60; f++) g.simulateFrame();
         }
+        check(namedRival, "le Professeur demande le nom du rival");
+        eq("Régis", g.save.rivalName, "nom du rival sauvegardé");
         check(g.top() instanceof OverworldScene, "après l'accueil, on arrive dans le monde");
         eq("Ra7yan Lefèv", g.save.name, "nom sauvegardé");
         eq(c.look(), g.save.look, "apparence sauvegardée");
