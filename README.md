@@ -68,11 +68,15 @@ Le dossier `export/` est ignoré par git.
 
 ## Écran d'accueil
 
-Au lancement, un écran titre façon PokeMMO : **Jouer**, **Modifier le personnage**, **Quitter**.
-Son fond animé est construit à partir de ta ROM : ta ville de départ et ses routes en panoramique
-de nuit, et le duo légendaire de ta cartouche qui flotte de part et d'autre (Ho-Oh et Lugia pour
-Rouge Feu / Vert Feuille, Groudon et Kyogre pour Émeraude). Le même fond sert derrière la création
-de personnage.
+Au lancement, **le vrai écran titre de ta cartouche**, lu dans ta ROM : logo, Dracaufeu (ou Florizarre
+sur Vert Feuille), flammes qui montent, reflet qui balaie le logo et « PRESS START » qui clignote, avec
+la musique du titre. Start (ou un clic) ouvre le menu, dans des cadres blancs façon Rouge Feu :
+**Continuer** (nom du joueur, temps de jeu, Pokédex), **Modifier le personnage**, **Nouvelle partie**
+(avec confirmation, une copie de secours est gardée) et **Quitter**. B revient à l'écran titre.
+
+Sur une ROM où l'écran titre est introuvable (Émeraude pour l'instant, ou ROM modifiée), le menu
+s'affiche sur un fond animé construit à partir de ta ROM (ta ville de départ en panoramique de nuit
+et le duo légendaire de ta cartouche). Ce fond sert aussi derrière la création de personnage.
 
 ## Création du personnage
 
@@ -160,13 +164,18 @@ La capsule de capture et l'interface sont dessinées par le moteur (design origi
 src/main/java/dev/orvaen/mmo/
 ├── rom/      Lecture de la ROM : Rom, GameProfile (FR/LG vs Émeraude), Lz77, TextCodec
 ├── gfx/      Formats graphiques GBA → images Java
-├── data/     Espèces, sprites, rencontres sauvages (GameData = tout ce qui est extrait)
-├── world/    Cartes : MapRepository, Tileset, MapLayout, warps, liaisons, MapRenderer
+├── data/     Tout ce qui est extrait au démarrage (GameData) : espèces, rencontres, intro, écran titre
+├── world/    Cartes : MapRepository, Tileset, MapLayout, warps, liaisons, PNJ, portes, MapRenderer
+├── script/   Machine à scripts : rejoue les scripts de l'histoire écrits dans la ROM
+├── audio/    Lecteur de musique GBA (moteur MP2K) en Java
 ├── player/   Sprites du joueur : localisation dans la ROM, masques par pièce, teinture
-├── engine/   Fenêtre, boucle 60 i/s, entrées, interface, sauvegarde
-├── scenes/   Monde, combat, Pokédex, menus
+├── engine/   Fenêtre, boucle 60 i/s, entrées, fenêtres déplaçables, sauvegarde
+├── scenes/   Écrans : titre, intro, monde (découpé en petites classes), combat, menus, Pokédex
 └── tools/    Extracteur (--extract)
 ```
+
+**Nouveau sur le projet ?** Commence par [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) : il explique
+en français simple comment le jeu est organisé, ce qui se passe à chaque image et où modifier quoi.
 
 Les formats sont documentés dans les classes, d'après la décompilation
 [pret/pokefirered](https://github.com/pret/pokefirered) et le
@@ -174,7 +183,7 @@ Les formats sont documentés dans les classes, d'après la décompilation
 
 ## Tests
 
-`build.sh` / `build.bat` lancent `SelfTest` (25 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
+`build.sh` / `build.bat` lancent `SelfTest` (46 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
 fabriquée par `SyntheticRom` : un faux Rouge Feu minuscule (2 espèces, 2 cartes, données inventées)
 qui exerce toute la chaîne — pointeurs, LZ77, texte, tilesets, warps, liaisons, rencontres, rendu,
 déplacements, combat et création de personnage — sans aucune donnée Nintendo.

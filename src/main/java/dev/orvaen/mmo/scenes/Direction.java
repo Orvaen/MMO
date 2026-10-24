@@ -19,6 +19,16 @@ public enum Direction {
         return i >= 0 && i < all.length ? all[i] : DOWN;
     }
 
+    /** La direction inverse (pour qu'un PNJ se tourne vers le joueur). */
+    public Direction opposite() {
+        return switch (this) {
+            case DOWN -> UP;
+            case UP -> DOWN;
+            case LEFT -> RIGHT;
+            case RIGHT -> LEFT;
+        };
+    }
+
     /** Direction actuellement maintenue (la plus récente gagne en cas de diagonale). */
     public static Direction held(Input in) {
         Direction best = null;
