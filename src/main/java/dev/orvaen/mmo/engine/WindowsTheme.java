@@ -39,6 +39,23 @@ public final class WindowsTheme {
         }
     }
 
+    private static boolean dwmBroken;
+
+    /**
+     * Attend la prochaine composition de l'écran par Windows (DWM), c'est-à-dire le prochain
+     * rafraîchissement. En fenêtre, c'est la synchronisation verticale la plus fiable sous Windows :
+     * Java ne sait pas toujours l'obtenir lui-même. Renvoie faux si indisponible (hors Windows…).
+     */
+    public static boolean waitForVBlank() {
+        if (dwmBroken || !System.getProperty("os.name", "").toLowerCase().contains("windows")) return false;
+        try {
+            return Native.dwmFlush() == 0;
+        } catch (Throwable t) {
+            dwmBroken = true;
+            return false;
+        }
+    }
+
     /**
      * Sonde de test, utilisable hors Windows : appelle {@code getpid} de la libc par le même
      * mécanisme que FindWindowW / DwmSetWindowAttribute (réflexion + appel natif).
@@ -62,6 +79,12 @@ public final class WindowsTheme {
         private static final Object ARENA_GLOBAL;
         private static MethodHandle findWindow;
         private static MethodHandle setAttribute;
+        private static MethodHandle flush;
+
+        static synchronized int dwmFlush() throws Throwable {
+            if (flush == null) flush = downcall("dwmapi", "DwmFlush", JAVA_INT);
+            return (int) flush.invokeExact();
+        }
 
         static {
             try {

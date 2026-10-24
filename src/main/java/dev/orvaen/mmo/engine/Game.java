@@ -199,7 +199,18 @@ public final class Game {
     public void run(Supplier<Scene> first) {
         createWindow();
         frame.setVisible(true);
-        boolean vsync = VSync.createBuffers(canvas);
+        // Synchronisation sur l'écran : sous Windows on attend la composition DWM après chaque image
+        // (fiable en fenêtre) ; ailleurs on demande la V-Sync à Java2D ; sinon minuterie.
+        boolean vsync;
+        if (WindowsTheme.waitForVBlank()) {
+            canvas.createBufferStrategy(2);
+            dwmPacing = true;
+            vsync = true;
+            pacing = "DWM";
+        } else {
+            vsync = VSync.createBuffers(canvas);
+            pacing = vsync ? "V-Sync" : "minuterie";
+        }
         canvas.requestFocus();
         push(first.get());
         preciseTimer();
@@ -212,8 +223,9 @@ public final class Game {
         long frameNanos = 1_000_000_000L / refresh;
         long nextTick = System.nanoTime(), nextFrame = nextTick, lastTick = nextTick;
         int vsyncChecks = 0;
-        long vsyncStart = System.nanoTime();
-        System.out.println("Affichage : " + refresh + " Hz, V-Sync " + (vsync ? "demandée" : "indisponible"));
+        long vsyncStart = 0;
+        refreshHz = refresh;
+        System.out.println("Affichage : " + refresh + " Hz, synchronisation : " + pacing);
         while (running) {
             long now = System.nanoTime();
             int ticks = 0;
@@ -231,12 +243,16 @@ public final class Game {
                 draw();
                 // Le pilote respecte-t-il vraiment la V-Sync ? Si les images partent bien plus vite que
                 // l'écran ne les affiche, on reprend la cadence à la main.
-                if (++vsyncChecks == 120) {
+                // (mesure après 30 images de chauffe : le démarrage fausserait la moyenne)
+                if (++vsyncChecks == 30) vsyncStart = System.nanoTime();
+                if (vsyncChecks == 150) {
                     double perFrame = (System.nanoTime() - vsyncStart) / 120.0;
                     if (perFrame < frameNanos * 0.6) {
                         vsync = false;
+                        dwmPacing = false;
+                        pacing = "minuterie";
                         nextFrame = System.nanoTime();
-                        System.out.println("V-Sync ignorée par le pilote : cadence par minuterie");
+                        System.out.println("Synchronisation ignorée : cadence par minuterie");
                     }
                 }
                 continue;
@@ -332,6 +348,7 @@ public final class Game {
     }
 
     private void draw() {
+        renderStart = System.nanoTime();
         countFrame();
         drawScreen();
         BufferStrategy bs = canvas.getBufferStrategy();
@@ -346,6 +363,26 @@ public final class Game {
         }
         bs.show();
         java.awt.Toolkit.getDefaultToolkit().sync();
+        long rendered = System.nanoTime();
+        if (dwmPacing && !WindowsTheme.waitForVBlank()) {
+            dwmPacing = false;
+            pacing = "minuterie";
+        }
+        frameStats(rendered);
+    }
+
+    private volatile boolean dwmPacing;
+    private String pacing = "-";
+    private int refreshHz = 60;
+    private long lastShown, renderStart;
+    private double worstMs, worstShown, renderMs, renderShown;
+
+    /** Temps de rendu et pire écart entre deux images (affichés avec F3, pour diagnostiquer). */
+    private void frameStats(long rendered) {
+        long now = System.nanoTime();
+        if (lastShown != 0) worstMs = Math.max(worstMs, (now - lastShown) / 1e6);
+        renderMs = Math.max(renderMs, (rendered - renderStart) / 1e6);
+        lastShown = now;
     }
 
     /** Image du jeu agrandie (pixels nets), puis interface haute résolution, puis fondu. */
@@ -377,7 +414,8 @@ public final class Game {
             out.fillRect(0, 0, cw, ch);
         }
         if (showFps) {
-            String fps = String.format("%.0f FPS", measuredFps);
+            String fps = String.format("%.0f FPS · %d Hz · %s · rendu %.1f ms · pire écart %.1f ms",
+                    measuredFps, refreshHz, pacing, renderShown, worstShown);
             out.setFont(HiUi.font(13, true));
             out.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             int tw = out.getFontMetrics().stringWidth(fps);
@@ -399,6 +437,10 @@ public final class Game {
         long now = System.nanoTime();
         if (now - fpsWindowStart >= 500_000_000L) {
             measuredFps = fpsFrames * 1e9 / (now - fpsWindowStart);
+            worstShown = worstMs;
+            renderShown = renderMs;
+            worstMs = 0;
+            renderMs = 0;
             fpsFrames = 0;
             fpsWindowStart = now;
         }

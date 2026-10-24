@@ -652,9 +652,9 @@ public final class OverworldScene implements Scene {
         if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * 10);
         // Comme sur GBA : pied en avant pendant la 1re moitié du pas, position de repos pendant la 2de
         int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
-        // Course, comme sur GBA : 5 frames d'élan puis 3 frames de foulée, pied alterné à chaque case
+        // Course, comme sur GBA : élan sur 60 % de la case puis foulée (5 + 3 frames sur GBA), pied alterné à chaque case
         boolean run = moving && running;
-        if (run) step = progress >= distance * 0.625 - 1e-6 ? (stepLeftFoot ? 1 : 2) : 0;
+        if (run) step = progress >= distance * 0.6 - 1e-6 ? (stepLeftFoot ? 1 : 2) : 0;
         // Joueur calé sur un pixel entier de l'écran : chaque pixel du sprite fait exactement « zoom » pixels
         // (sinon, en nearest-neighbor, certains pixels font 2 ou 4 de large et le sprite tremble en marchant)
         Graphics2D p = (Graphics2D) g.create();
