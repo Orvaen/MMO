@@ -652,16 +652,24 @@ public final class OverworldScene implements Scene {
         if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * 10);
         // Comme sur GBA : pied en avant pendant la 1re moitié du pas, position de repos pendant la 2de
         int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
-        // Course : foulée sur la 1re moitié de la case, appui sur la 2de (durées égales : plus fluide que le 5 + 3 de la GBA)
+        // Course, rythme GBA : phase en l'air (jambes groupées) sur 5/8 de la case, puis appui sur un pied ;
+        // le pied d'appui alterne à chaque case (gauche, droite, gauche…)
         boolean run = moving && running;
-        if (run) step = progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
+        int bob = 0;
+        if (run) {
+            step = progress >= distance * 0.625 - 1e-6 ? (stepLeftFoot ? 1 : 2) : 0;
+            // Rebond du corps lissé au pixel de l'écran : haut en l'air, bas à l'appui (sur GBA c'est un saut
+            // d'1 pixel, trop sec une fois agrandi). Les frames, elles, sont recalées à hauteur de tête constante.
+            double phase = exactProgress() / distance;
+            bob = (int) Math.round(zoom * (1 - Math.sin(Math.PI * phase)));
+        }
         // Joueur calé sur un pixel entier de l'écran : chaque pixel du sprite fait exactement « zoom » pixels
         // (sinon, en nearest-neighbor, certains pixels font 2 ou 4 de large et le sprite tremble en marchant)
         Graphics2D p = (Graphics2D) g.create();
         p.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
                 java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         p.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
-        p.translate(Math.round(originX + ex * zoom), Math.round(originY + ey * zoom));
+        p.translate(Math.round(originX + ex * zoom), Math.round(originY + ey * zoom) + bob);
         p.scale(zoom, zoom);
         if (!hidden) avatar.drawOverworld(p, 0, 0, facing, step, hop, run);
         if (!hidden && !moving && map.isLandEncounterAt(px, py) && map.behaviorAt(px, py) == 0x02) {
