@@ -258,7 +258,8 @@ public final class SyntheticRom {
      * (LZ, 1200 octets) à la suite, palette de 80 couleurs suivie du repère, et 4 grilles de lieux.
      */
     private void buildRegionMap() {
-        // leurre : 4 autres écrans de 30 × 20 cases à la suite (palette 9 : pas ceux de la carte), placés avant
+        // leurres, placés avant (comme dans la vraie ROM) : 4 écrans de 30 × 20 cases avec une palette qui
+        // n'existe pas ; puis un autre écran plein format crédible (palettes 0-4, ses tuiles juste avant).
         java.io.ByteArrayOutputStream decoy = new java.io.ByteArrayOutputStream();
         for (int m = 0; m < 4; m++) {
             byte[] tm = new byte[1200];
@@ -267,8 +268,24 @@ public final class SyntheticRom {
             decoy.write(lz, 0, lz.length);
             while (decoy.size() % 4 != 0) decoy.write(0);
         }
+        byte[] decoyTiles = Lz77Encoder.encode(new byte[0x2800]);
+        decoy.write(decoyTiles, 0, decoyTiles.length);
+        while (decoy.size() % 4 != 0) decoy.write(0);
+        for (int m = 0; m < 4; m++) {
+            byte[] tm = new byte[1200];
+            for (int i = 0; i < 600; i++) tm[i * 2] = (byte) (i % 7);
+            byte[] lz = Lz77Encoder.encode(tm);
+            decoy.write(lz, 0, lz.length);
+            while (decoy.size() % 4 != 0) decoy.write(0);
+        }
         int decoyAt = alloc(decoy.size());
         System.arraycopy(decoy.toByteArray(), 0, rom, decoyAt, decoy.size());
+        // comme dans le jeu : la palette (et son repère), puis les tuiles, puis les 4 plans
+        int pal = alloc(160 + 8);
+        w16(pal + 2, REGION_SEA);
+        w16(pal + 32 + 2, REGION_LAND);
+        byte[] mark = {0x00, 0x7C, (byte) 0x80, 0x7D, (byte) 0xFF, 0x7F, (byte) 0xFF, 0x7F};
+        System.arraycopy(mark, 0, rom, pal + 160, 8);
         byte[] tiles = new byte[0x2800];
         for (int i = 32; i < 64; i++) tiles[i] = 0x11;            // tuile 1 : couleur 1 partout
         int tileData = alloc(0x2800 / 4);
@@ -290,11 +307,6 @@ public final class SyntheticRom {
         }
         int packed = alloc(plans.size());
         System.arraycopy(plans.toByteArray(), 0, rom, packed, plans.size());
-        int pal = alloc(160 + 8);
-        w16(pal + 2, REGION_SEA);
-        w16(pal + 32 + 2, REGION_LAND);
-        byte[] mark = {0x00, 0x7C, (byte) 0x80, 0x7D, (byte) 0xFF, 0x7F, (byte) 0xFF, 0x7F};
-        System.arraycopy(mark, 0, rom, pal + 160, 8);
         int grids = alloc(4 * 660 + 8);
         for (int i = 0; i < 4 * 660; i++) rom[grids + i] = (byte) REGION_NONE;
         rom[grids + REGION_TOWN_Y * 22 + REGION_TOWN_X] = 0x58;

@@ -49,9 +49,13 @@ public final class RegionMap {
         this.rom = rom;
         for (int i = 0; i < MAPS; i++) tilemaps[i] = -1;
         int t = -1;
-        // Plusieurs écrans du jeu font 30 × 20 cases : on essaie chaque groupe de 4 plans à la suite et on
-        // garde celui dont les tuiles (juste avant) et les palettes (5 au plus) correspondent.
-        for (int first = findTilemaps(0); first >= 0 && t < 0; first = findTilemaps(first + 4)) {
+        // La palette est rangée juste avant les images de la carte (dans le jeu : palettes, puis curseurs et
+        // icônes, puis les tuiles de la carte, puis ses 4 plans). On cherche donc les plans à partir de la
+        // palette ; plusieurs écrans du jeu font aussi 30 × 20 cases, on vérifie chaque groupe de 4 plans :
+        // palettes utilisées (5 au plus) et tuiles juste avant, assez nombreuses.
+        int pal = findPalette();
+        int start = pal >= 0 ? pal : 0, limit = pal >= 0 ? pal + 0x20000 : Integer.MAX_VALUE;
+        for (int first = findTilemaps(start); first >= 0 && first < limit && t < 0; first = findTilemaps(first + 4)) {
             int[] maps = new int[MAPS];
             int o = first, maxTile = 0;
             boolean ok = true;
@@ -72,14 +76,14 @@ public final class RegionMap {
                 o = (Lz77.end(rom, o) + 3) & ~3;
             }
             if (!ok) continue;
-            int found = findTiles(first, (maxTile + 1) * 32);
+            int found = findTiles(first, (maxTile + 1) * 32, start);
             if (found >= 0) {
                 t = found;
                 System.arraycopy(maps, 0, tilemaps, 0, MAPS);
             }
         }
         this.tiles = t;
-        this.palette = findPalette();
+        this.palette = pal;
         int g = findGrids();
         this.grids = g;
         this.none = g < 0 ? -1 : mostFrequent(g);
@@ -184,8 +188,8 @@ public final class RegionMap {
      * Les tuiles : le bloc LZ le plus proche avant les plans qui contient au moins {@code need} octets de
      * tuiles (dans le jeu : 3 blocs avant, 0x2800 octets).
      */
-    private int findTiles(int before, int need) {
-        for (int o = (before - 4) & ~3; o >= Math.max(0, before - 0x10000); o -= 4) {
+    private int findTiles(int before, int need, int notBefore) {
+        for (int o = (before - 4) & ~3; o >= Math.max(notBefore, before - 0x10000); o -= 4) {
             int size = lzSize(o);
             if (size < need || size > 0x8000 || size % 32 != 0) continue;
             int end = Lz77.end(rom, o);
