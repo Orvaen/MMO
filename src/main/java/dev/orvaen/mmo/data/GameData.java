@@ -29,6 +29,8 @@ public final class GameData {
     private dev.orvaen.mmo.battle.BattleData battle;
     private dev.orvaen.mmo.battle.BattleGraphics battleGraphics;
     private dev.orvaen.mmo.world.FieldEffects fieldEffects;
+    private dev.orvaen.mmo.battle.MoveAnimations moveAnimations;
+    private PokemonIcons icons;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -62,6 +64,18 @@ public final class GameData {
     public dev.orvaen.mmo.battle.BattleGraphics battleGraphics() {
         if (battleGraphics == null) battleGraphics = new dev.orvaen.mmo.battle.BattleGraphics(rom);
         return battleGraphics;
+    }
+
+    /** Animations d'attaque (scripts, images et sons de la ROM), lues au premier combat. */
+    public dev.orvaen.mmo.battle.MoveAnimations moveAnimations() {
+        if (moveAnimations == null) moveAnimations = new dev.orvaen.mmo.battle.MoveAnimations(rom);
+        return moveAnimations;
+    }
+
+    /** Petites icônes animées des Pokémon (le Pokémon qui suit le joueur). */
+    public PokemonIcons icons() {
+        if (icons == null) icons = new PokemonIcons(rom);
+        return icons;
     }
 
     /** Effets de terrain du monde (herbe haute qui bouge…). */

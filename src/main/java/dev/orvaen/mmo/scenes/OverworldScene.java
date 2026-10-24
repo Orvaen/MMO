@@ -60,6 +60,7 @@ public final class OverworldScene implements Scene {
     final MapView view;
     final MessageBox box = new MessageBox();
     private final GrassEffects grass;
+    private final FollowerPokemon follower;
     private final OverworldScriptHost host;
     private PlayerSprite avatar;
     private final Random rng = new Random();
@@ -97,6 +98,7 @@ public final class OverworldScene implements Scene {
         this.view = new MapView(game.data);
         this.host = new OverworldScriptHost(this);
         this.grass = new GrassEffects(game.data.fieldEffects());
+        this.follower = new FollowerPokemon(game.data.icons());
         refreshAvatar();
         startNewGameIfNeeded();
         placePlayerAtStart();
@@ -169,6 +171,8 @@ public final class OverworldScene implements Scene {
         npcs.respawn(map);
         npcs.update(map, player, vm != null);
         grass.update(map, player, npcs.all());
+        follower.setSpecies(leadSpecies());
+        follower.update(player);
         player.tick();
         if (doorPhase == DoorPhase.NONE && doors.active()) {
             doors.update();                               // porte ouverte / fermée par un script
@@ -274,6 +278,7 @@ public final class OverworldScene implements Scene {
             MapView.Located next = view.locate(map, tx, ty);
             if (next == null || !canEnter(next.map(), next.x(), next.y())) return;
             int ox = next.x() - tx, oy = next.y() - ty;   // décalage entre les repères des deux cartes
+            follower.shift(ox, oy);
             switchMap(next.map(), px + ox, py + oy);
             startStep(dir, running, T);
             return;
@@ -504,6 +509,7 @@ public final class OverworldScene implements Scene {
         player.placeAt(x, y);
         player.facing = Direction.DOWN;
         player.hidden = false;
+        follower.placeAt(x, y, player);
         doorPhase = DoorPhase.NONE;
         doors.clear();
         if (newPlace) areaPopupTimer = OverworldHud.AREA_POPUP_FRAMES;
@@ -642,6 +648,15 @@ public final class OverworldScene implements Scene {
         return true;
     }
 
+    /** Espèce du premier Pokémon en forme de l'équipe (celui qui suit le joueur), ou 0. */
+    private int leadSpecies() {
+        for (int[] m : game.save.party) {
+            boolean fainted = m.length >= 20 && m[3] <= 0;
+            if (!fainted && m.length > 0) return m[0];
+        }
+        return 0;
+    }
+
     String rivalName() {
         String r = game.save.rivalName;
         return r == null || r.isBlank() ? "Blue" : r;
@@ -658,6 +673,11 @@ public final class OverworldScene implements Scene {
     public int playerY() { return player.y; }
     public Direction facing() { return player.facing; }
     public boolean playerHidden() { return player.hidden; }
+
+    /** Case du Pokémon qui suit le joueur ({x, y}), ou null s'il n'est pas visible — pour les tests. */
+    public int[] followerTile() {
+        return follower.visible(player) ? new int[]{follower.x(), follower.y()} : null;
+    }
 
     /** Nombre d'herbes hautes en train de s'agiter — pour les tests. */
     public int rustlingGrass() { return grass.count(); }
@@ -727,7 +747,11 @@ public final class OverworldScene implements Scene {
         for (Npc n : npcs.all()) if (n.exactY(interp) <= playerY) OverworldHud.drawNpc(g, n, originX, originY, zoom, interp);
         boolean tallGrass = map.isLandEncounterAt(player.x, player.y)
                 && map.behaviorAt(player.x, player.y) == BEHAVIOR_TALL_GRASS;
+        // Le Pokémon qui suit : derrière le joueur s'il est plus haut sur l'écran, devant sinon
+        boolean followerBehind = follower.exactY(player, interp) <= playerY;
+        if (followerBehind) follower.draw(g, player, originX, originY, zoom, interp);
         player.draw(g, avatar, originX, originY, zoom, interp, view.render(map).below(), tallGrass);
+        if (!followerBehind) follower.draw(g, player, originX, originY, zoom, interp);
         for (Npc n : npcs.all()) if (n.exactY(interp) > playerY) OverworldHud.drawNpc(g, n, originX, originY, zoom, interp);
         grass.draw(g, originX, originY, zoom);                   // l'herbe haute agitée cache les pieds
 

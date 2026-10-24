@@ -83,6 +83,7 @@ public final class SelfTest {
         test("Combat : attaques, apprentissages, types, expérience lus dans la ROM", SelfTest::battleData);
         test("Combat : fonds, boîte de texte, Poké Ball, sprites de dos", SelfTest::battleGraphics);
         test("Herbe haute : images de l'effet retrouvées dans la ROM", SelfTest::tallGrassGraphics);
+        test("Animations d'attaque : scripts, images et sons de la ROM", SelfTest::moveAnimations);
         test("Pokémon : stats Gen 3, sauvegarde, ancien format complété", SelfTest::pokemonModel);
         test("Combat : dégâts, efficacité, statut, K.O., expérience, nouvelle attaque", SelfTest::battleEngine);
         test("Combat : capture, fuite, dresseur et remplacement après K.O.", SelfTest::battleActions);
@@ -90,6 +91,7 @@ public final class SelfTest {
         test("Carte de dresseur : n° ID, temps de jeu, ouverture depuis le menu", SelfTest::trainerCard);
         test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
+        test("Pokémon qui suit le joueur : case quittée, icône de la ROM", SelfTest::follower);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
         test("Combat : écran complet contre un dresseur jusqu'à la victoire", SelfTest::trainerBattleScene);
@@ -852,6 +854,50 @@ public final class SelfTest {
         check(tb.prizeMoney() > 0, "argent gagné");
     }
 
+    private static void moveAnimations() {
+        GameData d = data();
+        var anims = d.moveAnimations();
+        check(anims.available(), "tables d'animations trouvées");
+        int script = anims.script(SyntheticRom.MOVE_TACKLE);
+        check(script >= 0, "script de CHARGE");
+        // on rejoue l'animation hors écran : images, élan, tremblement, son, puis fin
+        var img = new BufferedImage(240, 160, BufferedImage.TYPE_INT_ARGB);
+        boolean drew = false, moved = false, shook = false, done = false;
+        Class<?> player;
+        try {
+            player = Class.forName("dev.orvaen.mmo.scenes.MoveAnimPlayer");
+            var ctor = player.getDeclaredConstructor(dev.orvaen.mmo.battle.MoveAnimations.class,
+                    dev.orvaen.mmo.audio.AudioEngine.class, int.class, int.class);
+            ctor.setAccessible(true);
+            Object p = ctor.newInstance(anims, d.audio, script, 0);
+            var update = player.getDeclaredMethod("update");
+            var draw = player.getDeclaredMethod("draw", java.awt.Graphics2D.class);
+            var offX = player.getDeclaredMethod("offsetX", int.class);
+            update.setAccessible(true);
+            draw.setAccessible(true);
+            offX.setAccessible(true);
+            for (int f = 0; f < 200 && !done; f++) {
+                done = (boolean) update.invoke(p);
+                var g = img.createGraphics();
+                g.setComposite(java.awt.AlphaComposite.Clear);
+                g.fillRect(0, 0, 240, 160);
+                g.setComposite(java.awt.AlphaComposite.SrcOver);
+                draw.invoke(p, g);
+                g.dispose();
+                // impact centré sur la cible (176, 40)
+                drew |= img.getRGB(176, 40) == GbaGfx.bgr555ToArgb(SyntheticRom.ANIM_COLOR);
+                moved |= (double) offX.invoke(p, 0) > 2;
+                shook |= Math.abs((double) offX.invoke(p, 1)) > 0;
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+        check(drew, "l'impact de la ROM est dessiné sur la cible");
+        check(moved, "l'attaquant s'élance");
+        check(shook, "la cible tremble");
+        check(done, "l'animation se termine");
+    }
+
     private static void tallGrassGraphics() {
         var grass = data().fieldEffects().tallGrass;
         check(grass != null && grass.length == 5, "5 images d'herbe");
@@ -977,6 +1023,33 @@ public final class SelfTest {
         check(g.save.money > money, "argent gagné contre le dresseur");
         var team = dev.orvaen.mmo.battle.Party.load(g.data, g.save);
         check(team.get(0).exp > team.get(0).expForLevel(60), "expérience gagnée et sauvegardée");
+    }
+
+    private static void follower() {
+        Game g = freshGame();
+        g.save.party.add(new int[]{1, 10});
+        g.push(new OverworldScene(g));
+        OverworldScene w = world(g);
+        check(w.followerTile() == null, "à l'arrivée, il attend sous le joueur");
+        var icon = g.data.icons().frames(1);
+        check(icon != null && icon.length == 2, "icône animée lue dans la ROM");
+        eq(GbaGfx.bgr555ToArgb(SyntheticRom.ICON_COLOR), icon[0].getRGB(16, 16), "couleur de l'icône");
+        int x0 = w.playerX(), y0 = w.playerY();
+        // deux pas : il prend la case quittée par le joueur
+        for (int i = 0; i < 60 && w.playerX() < x0 + 2 && w.playerY() == y0; i++) {
+            hold(g, Button.RIGHT, 1);
+        }
+        g.input().set(Button.RIGHT, false);
+        for (int i = 0; i < 20; i++) g.simulateFrame();
+        int[] f = w.followerTile();
+        check(f != null, "il est visible derrière le joueur");
+        eq(w.playerX() - 1, f[0], "une case derrière (x)");
+        eq(w.playerY(), f[1], "même ligne (y)");
+        BufferedImage frame = g.renderWindow(960, 640);
+        boolean seen = false;
+        int target = GbaGfx.bgr555ToArgb(SyntheticRom.ICON_COLOR);
+        for (int y = 0; y < frame.getHeight() && !seen; y += 2) for (int x = 0; x < frame.getWidth() && !seen; x += 2) seen = frame.getRGB(x, y) == target;
+        check(seen, "dessiné à l'écran");
     }
 
     private static void frames() {

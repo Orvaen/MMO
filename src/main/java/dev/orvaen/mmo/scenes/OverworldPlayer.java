@@ -34,6 +34,9 @@ final class OverworldPlayer implements Movement.Actor {
     boolean running;                    // pas fait en courant (bouton B)
     boolean stepLeftFoot;               // les pieds alternent à chaque pas
 
+    /** Nombre de pas commencés (le Pokémon qui suit s'en sert pour savoir quand bouger). */
+    int steps;
+
     // Pas commandés par un script
     boolean scriptedStep, hopStep, animateStep = true;
     int inPlace;                        // frames restantes de « marche sur place »
@@ -57,6 +60,7 @@ final class OverworldPlayer implements Movement.Actor {
         moving = true;
         progress = 0;
         distance = dist;
+        steps++;
         stepLeftFoot = !stepLeftFoot;
         running = run && dist == T;
         // Marche : 16 frames par case (comme sur GBA). Corniche : 2 pixels par frame.
@@ -128,6 +132,7 @@ final class OverworldPlayer implements Movement.Actor {
         moving = true;
         progress = 0;
         distance = T * tiles;
+        steps++;
         speed = distance / (double) Math.max(1, frames);
         running = false;
         scriptedStep = true;

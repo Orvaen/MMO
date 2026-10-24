@@ -33,6 +33,9 @@ public enum GameProfile {
     public static final int PTR_MOVES = 0x1CC;            // caractéristiques des attaques (12 octets chacune)
     public static final int PTR_BALL_SPRITES = 0x1D0;     // images des Poké Balls
     public static final int PTR_BALL_PALETTES = 0x1D4;
+    public static final int PTR_ICONS = 0x138;            // petites icônes animées (menu d'équipe)
+    public static final int PTR_ICON_PALETTE_IDS = 0x13C; // n° de palette de chaque icône (0 à 2)
+    public static final int PTR_ICON_PALETTES = 0x140;    // les 3 palettes des icônes
 
     // Signatures de code précédant les pointeurs vers les tables de cartes et de rencontres
     public static final String SIG_MAP_GROUPS = "80180068890B091808687047";

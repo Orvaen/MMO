@@ -143,14 +143,17 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   partages de clavier) et les enveloppes sont lus dans ta ROM. Musique de chaque carte, écran titre, accueil du
   Professeur, combats, capture, fanfares et effets des scripts (playbgm, playse, playfanfare…), portes et
   escaliers. **F9** coupe / remet le son
+- **Pokémon qui suit** : le premier Pokémon en forme de l'équipe marche derrière toi (icône animée de la ROM)
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement ; l'herbe haute
   s'agite sous les pas (joueur et PNJ), avec l'animation de la ROM
 - **Combat** (règles de la 3e génération, données de ta ROM) :
   - fond du terrain (herbe, hautes herbes, eau, grotte, bâtiment…), boîte de texte et menus, Poké Ball,
     sprites de face et de dos, tous lus dans la ROM ; musiques de combat, de victoire et de capture, bruitages ;
-  - transition (flashs puis bandes noires), entrée en scène en silhouette, lancer de Poké Ball, élan des
-    attaques physiques, boule d'énergie des attaques spéciales, clignotement des coups, barres de PV et
-    d'EXP animées, K.O. ;
+  - **animations d'attaque de la ROM** : le script d'animation de chaque attaque est rejoué — ses images
+    (impacts, flammes, bulles…), leur animation image par image, ses sons et son rythme ; les trajectoires
+    (projectile, impact sur la cible, élan, tremblement) sont reconstituées à partir des paramètres du script ;
+  - transition (flashs puis bandes noires), entrée en scène en silhouette, lancer de Poké Ball,
+    clignotement des coups, barres de PV et d'EXP animées, K.O. ;
   - menus **ATTAQUE / SAC / POKéMON / FUITE**, choix des attaques avec PP et type, changement de Pokémon ;
   - attaques, PP, types et efficacités, coups critiques, même type ×1,5, précision et esquive, crans de
     stats, statuts (sommeil, poison, brûlure, gel, paralysie, confusion, Vampigraine), priorité (Vive-Attaque) ;
@@ -197,7 +200,7 @@ Les formats sont documentés dans les classes, d'après la décompilation
 
 ## Tests
 
-`build.sh` / `build.bat` lancent `SelfTest` (53 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
+`build.sh` / `build.bat` lancent `SelfTest` (55 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
 fabriquée par `SyntheticRom` : un faux Rouge Feu minuscule (2 espèces, 2 cartes, données inventées)
 qui exerce toute la chaîne — pointeurs, LZ77, texte, tilesets, warps, liaisons, rencontres, rendu,
 déplacements, combat et création de personnage — sans aucune donnée Nintendo.
@@ -206,7 +209,7 @@ déplacements, combat et création de personnage — sans aucune donnée Nintend
 
 1. **Serveur en ligne** : serveur Java (sockets) qui synchronise positions, cartes et apparences des personnages
 2. PNJ et panneaux des cartes (sprites lus depuis la ROM) ; cosmétiques en calques (lunettes, nouveaux couvre-chefs…)
-3. Combat : évolutions, objets du sac, PC, animations d'attaque propres à chaque attaque, cris
+3. Combat : évolutions, objets du sac, PC, cris ; effets de fond des animations (écran qui s'assombrit…)
 4. Surf, pêche, rencontres d'eau ; musique et cris
 5. Émeraude complètement validé, puis Gen 4/5 (ROM NDS) comme PokeMMO
 

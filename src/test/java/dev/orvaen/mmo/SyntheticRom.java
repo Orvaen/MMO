@@ -390,7 +390,9 @@ public final class SyntheticRom {
         }
         ptr(GameProfile.PTR_BACK_SPRITES, backTable);
 
+        buildIcons();
         if (!battleGraphics) return;
+        buildMoveAnimations();
         // Fonds de combat : 10 terrains identiques, lignes 0 à 13 = tuile 1 de couleur 1 (palette 2)
         java.io.ByteArrayOutputStream tb = new java.io.ByteArrayOutputStream();
         lzBlock(tb, solidTiles(2, 1));
@@ -473,6 +475,112 @@ public final class SyntheticRom {
         int palStruct = alloc(8);
         ptr(palStruct, grassPal);
         w16(palStruct + 4, 0x1005);
+    }
+
+    public static final int ANIM_COLOR = 0x001F, ANIM_SE = 13;
+
+    /**
+     * Animations d'attaque, au format du jeu : 70 planches d'images (n° 10000…) et leurs palettes,
+     * deux modèles de sprite (un impact 32x32 animé, un sprite invisible qui fait s'élancer l'attaquant),
+     * et les scripts de CHARGE (élan, impact, tremblement, son) et FLAMMECHE (projectile).
+     */
+    private void buildMoveAnimations() {
+        int pics = 70;
+        int sheet = alloc(600);
+        writeLz(sheet, solidTiles(48, 1));                         // 3 images 32x32
+        byte[] pal = new byte[32];
+        put16(pal, 2, ANIM_COLOR);
+        int palData = alloc(64);
+        writeLz(palData, pal);
+        int picTable = alloc(pics * 8), palTable = alloc(pics * 8);
+        for (int i = 0; i < pics; i++) {
+            ptr(picTable + i * 8, sheet);
+            w16(picTable + i * 8 + 4, 0x600);
+            w16(picTable + i * 8 + 6, 10000 + i);
+            ptr(palTable + i * 8, palData);
+            w16(palTable + i * 8 + 4, 10000 + i);
+        }
+        int oam = alloc(8);
+        w32(oam, 0x80000000);                                      // carré, taille 2 : 32x32
+        int anim = alloc(16);
+        w32(anim, 0 | 4 << 16);                                    // image 0 (tuile 0), 4 frames
+        w32(anim + 4, 16 | 4 << 16);                               // image 1 (tuile 16), 4 frames
+        w32(anim + 8, 0xFFFF);                                     // fin
+        int animTable = alloc(4);
+        ptr(animTable, anim);
+        int impact = alloc(24), lunge = alloc(24);
+        w16(impact, 10005);
+        w16(impact + 2, 10005);
+        ptr(impact + 4, oam);
+        ptr(impact + 8, animTable);
+        ptr(impact + 16, anim);
+        ptr(impact + 20, anim);
+        ptr(lunge + 4, oam);
+        ptr(lunge + 8, animTable);
+        ptr(lunge + 16, anim);
+        ptr(lunge + 20, anim);
+        int task = alloc(4);                                       // « fonction » d'une tâche (adresse impaire)
+
+        java.io.ByteArrayOutputStream tackle = new java.io.ByteArrayOutputStream();
+        tackle.write(0x00); le16(tackle, 10005);                   // loadspritegfx
+        sprite(tackle, lunge, false, 4, 4);                        // élan de l'attaquant
+        tackle.write(0x04); tackle.write(6);                       // delay 6
+        sprite(tackle, impact, false, 0, 0, 1, 2);                 // impact sur la cible
+        tackle.write(0x03); le32(tackle, 0x0800_0000 + task + 1); tackle.write(2); tackle.write(5);
+        le16(tackle, 1); le16(tackle, 3); le16(tackle, 0); le16(tackle, 6); le16(tackle, 1);   // secouer la cible
+        tackle.write(0x19); le16(tackle, ANIM_SE); tackle.write(0x3F);                        // playsewithpan
+        tackle.write(0x05);                                        // waitforvisualfinish
+        tackle.write(0x08);                                        // end
+        java.io.ByteArrayOutputStream ember = new java.io.ByteArrayOutputStream();
+        ember.write(0x00); le16(ember, 10005);
+        sprite(ember, impact, true, 20, 0, -16, 24, 20, 1);         // projectile vers la cible
+        ember.write(0x05);
+        ember.write(0x08);
+        int tackleAt = alloc(tackle.size()), emberAt = alloc(ember.size()), none = alloc(1);
+        System.arraycopy(tackle.toByteArray(), 0, rom, tackleAt, tackle.size());
+        System.arraycopy(ember.toByteArray(), 0, rom, emberAt, ember.size());
+        rom[none] = 0x08;
+        int scripts = alloc(355 * 4);
+        for (int i = 0; i < 355; i++) ptr(scripts + i * 4, i == MOVE_TACKLE ? tackleAt : i == MOVE_EMBER ? emberAt : none);
+    }
+
+    public static final int ICON_COLOR = 0x7C1F;
+
+    /** Icônes des Pokémon (2 images 32x32 pleines de la couleur 1), n° de palette, et les 3 palettes. */
+    private void buildIcons() {
+        int n = GameProfile.SPECIES_COUNT;
+        int icon = alloc(1024);
+        for (int i = 0; i < 1024; i++) rom[icon + i] = 0x11;
+        int table = alloc(n * 4), ids = alloc(n);
+        for (int i = 0; i < n; i++) ptr(table + i * 4, icon);
+        int pal = alloc(32);
+        w16(pal + 2, ICON_COLOR);
+        int pals = alloc(3 * 8);
+        for (int i = 0; i < 3; i++) {
+            ptr(pals + i * 8, pal);
+            w16(pals + i * 8 + 4, 56000 + i);
+        }
+        ptr(GameProfile.PTR_ICONS, table);
+        ptr(GameProfile.PTR_ICON_PALETTE_IDS, ids);
+        ptr(GameProfile.PTR_ICON_PALETTES, pals);
+    }
+
+    private void sprite(java.io.ByteArrayOutputStream out, int template, boolean onTarget, int... args) {
+        out.write(0x02);
+        le32(out, 0x0800_0000 + template);
+        out.write((onTarget ? 0x80 : 0) | 2);
+        out.write(args.length);
+        for (int a : args) le16(out, a);
+    }
+
+    private static void le16(java.io.ByteArrayOutputStream out, int v) {
+        out.write(v);
+        out.write(v >> 8);
+    }
+
+    private static void le32(java.io.ByteArrayOutputStream out, int v) {
+        le16(out, v);
+        le16(out, v >> 16);
     }
 
     static long expFormula(int g, int n) {

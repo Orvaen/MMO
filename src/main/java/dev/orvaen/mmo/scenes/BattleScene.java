@@ -105,6 +105,8 @@ public final class BattleScene implements Scene {
     private record Projectile(int fromSide, double k, Color color) {}
 
     private Projectile projectile;
+    /** Animation d'attaque de la ROM en cours (null : aucune, ou animation de secours). */
+    private MoveAnimPlayer moveAnim;
 
     /** La Poké Ball en vol ou qui tremble. */
     private record BallAnim(double x, double y, int frameIndex, double angle) {}
@@ -259,7 +261,11 @@ public final class BattleScene implements Scene {
     private void begin(BattleEvent e) {
         switch (e) {
             case BattleEvent.Message m -> setMessage(m.text());
-            case BattleEvent.MoveUsed u -> { }
+            case BattleEvent.MoveUsed u -> {
+                var anims = game.data.moveAnimations();
+                int script = anims.available() ? anims.script(u.move().id()) : -1;
+                moveAnim = script >= 0 ? new MoveAnimPlayer(anims, game.data.audio, script, u.side()) : null;
+            }
             case BattleEvent.Damage d -> {
                 views[d.side()].hpTarget = d.hpAfter();
                 play(d.effectiveness() > 10 ? sfx.hitSuper() : d.effectiveness() < 10 ? sfx.hitWeak() : sfx.hitNormal());
@@ -315,6 +321,11 @@ public final class BattleScene implements Scene {
             case BattleEvent.MoveUsed u -> {
                 SideView v = views[u.side()];
                 Move mv = u.move();
+                if (moveAnim != null) {                          // la vraie animation de l'attaque (ROM)
+                    if (!moveAnim.update()) return false;
+                    moveAnim = null;
+                    return true;
+                }
                 if (!mv.status() && !mv.physical()) {
                     // attaque spéciale : une boule d'énergie de la couleur du type traverse le terrain
                     projectile = t < 20 ? new Projectile(u.side(), t / 20.0, new Color(Species.typeColor(mv.type()))) : null;
@@ -840,6 +851,7 @@ public final class BattleScene implements Scene {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         drawField(g);
         drawSprites(g);
+        if (moveAnim != null) moveAnim.draw(g);
         drawBoxes(g);
         drawBottomBox(g);
         if (projectile != null) drawProjectile(g, projectile);
@@ -923,7 +935,13 @@ public final class BattleScene implements Scene {
     private BufferedImage silhouette;
 
     private void drawMon(Graphics2D g, SideView v, int x, int y) {
+        int side = v == views[Battle.FOE] ? Battle.FOE : Battle.PLAYER;
         if (!v.visible || v.sprite == null || v.blink) return;
+        if (moveAnim != null && moveAnim.hidden(side)) return;
+        if (moveAnim != null) {
+            x += (int) Math.round(moveAnim.offsetX(side));
+            y += (int) Math.round(moveAnim.offsetY(side));
+        }
         Graphics2D m = (Graphics2D) g.create();
         // K.O. : le Pokémon descend derrière la ligne du sol
         m.clipRect(0, 0, 240, y + 64);
@@ -937,7 +955,7 @@ public final class BattleScene implements Scene {
             m.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.min(1, v.white)));
             m.drawImage(white, dx, dy, w, h, null);
         }
-        boolean flash = statFlashTimer > 0 && statFlashSide == (v == views[Battle.FOE] ? Battle.FOE : Battle.PLAYER);
+        boolean flash = statFlashTimer > 0 && statFlashSide == side;
         if (flash && (statFlashTimer / 4) % 2 == 0) {
             m.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, 0.35f));
             m.setColor(statFlashUp ? new Color(255, 120, 80) : new Color(80, 140, 255));

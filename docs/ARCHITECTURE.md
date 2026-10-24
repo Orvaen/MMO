@@ -106,6 +106,7 @@ Le son tourne à part, dans son propre fil d'exécution (`audio/AudioEngine`).
 | `OverworldScriptHost` | ce que les scripts peuvent faire : parler, faire marcher, ouvrir une porte, lancer un combat… |
 | `OverworldHud` | les petits dessins : bulles « ! », nom de la zone, portrait de Pokémon |
 | `GrassEffects` | l'herbe haute qui s'agite quand on y entre (images de la ROM) |
+| `FollowerPokemon` | le premier Pokémon de l'équipe, qui marche derrière le joueur |
 | `MessageBox` | la boîte de dialogue en bas, avec la flèche vers celui qui parle |
 
 **Une image du monde** (`OverworldScene.update`) :
@@ -147,6 +148,7 @@ Le combat est séparé en deux, pour qu'on puisse le comprendre (et le tester) m
 | `battle/BattleGraphics` | fonds de combat, boîte de texte, Poké Ball lus dans la ROM |
 | `scenes/BattleScene` | l'**écran** : menus, puis il rejoue les `BattleEvent` un par un avec les animations |
 | `scenes/BattleHud` | dessin des cadres de PV, des barres et du texte |
+| `battle/MoveAnimations`, `scenes/MoveAnimPlayer` | animations d'attaque : script, images et sons de la ROM, rejoués |
 
 Un tour : le joueur choisit dans le menu → `BattleScene` appelle par exemple `battle.useMove(0)` → le moteur
 calcule tout le tour et renvoie la liste des événements → l'écran les joue (« X utilise CHARGE ! », élan,
