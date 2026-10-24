@@ -40,7 +40,9 @@ public final class SpeciesRepository {
                     rom.u8(o), rom.u8(o + 1), rom.u8(o + 2), rom.u8(o + 3), rom.u8(o + 4), rom.u8(o + 5),
                     rom.u8(o + 6), rom.u8(o + 7),
                     rom.u8(o + 8), rom.u8(o + 9),
-                    rom.u8(o + 0x13));
+                    rom.u16(o + 10),                         // EV donnés (2 bits par stat)
+                    rom.u8(o + 0x13),
+                    rom.u8(o + 22), rom.u8(o + 23));         // talents 1 et 2
         }
     }
 

@@ -108,6 +108,8 @@ Le son tourne à part, dans son propre fil d'exécution (`audio/AudioEngine`).
 | `GrassEffects` | l'herbe haute qui s'agite quand on y entre (images de la ROM) |
 | `FollowerPokemon` | le premier Pokémon de l'équipe, qui marche derrière le joueur |
 | `MessageBox` | la boîte de dialogue en bas, avec la flèche vers celui qui parle |
+| `PartyBar` | l'équipe à droite de l'écran (icônes, PV) ; un clic ouvre le résumé |
+| `SummaryWindow` | le résumé d'un Pokémon (touche E) : infos, talent, nature, stats avec IV / EV, attaques |
 
 **Une image du monde** (`OverworldScene.update`) :
 
@@ -170,6 +172,8 @@ clignotement, la barre de PV descend…) → retour au menu.
 | ajouter une musique | `audio/Songs` (n° des morceaux) puis `game.data.audio.playBgm(n°)` |
 | changer ce qui est sauvegardé | `engine/Storage` |
 | changer une règle de combat (dégâts, capture…) | `battle/Battle` |
+| changer le calcul des stats, les EV, le talent | `battle/Pokemon` |
+| changer le résumé d'un Pokémon | `scenes/SummaryWindow` (textes des talents / natures : `data/PokemonTexts`) |
 | changer l'apparence du combat | `scenes/BattleScene`, `scenes/BattleHud` |
 
 ---

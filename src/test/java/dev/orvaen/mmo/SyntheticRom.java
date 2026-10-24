@@ -48,6 +48,7 @@ public final class SyntheticRom {
         fixHeader(rom);
 
         buildSpecies();
+        buildPokemonTexts();
         int primary = buildPrimaryTileset();
         int secondary = buildSecondaryTileset();
         buildMapsAndWild(primary, secondary);
@@ -208,6 +209,44 @@ public final class SyntheticRom {
 
     // ------------------------------------------------------------------ espèces
 
+    /** Talents de TESTMON et EV qu'il donne (Attaque +2, Vitesse +1). */
+    public static final int ABILITY_1 = 1, ABILITY_2 = 2, EV_YIELD = 2 << 2 | 1 << 6;
+    public static final String[] NATURES = {"HARDI", "SOLO", "BRAVE", "RIGIDE", "MAUVAIS", "ASSURÉ", "DOCILE",
+            "RELAX", "MALIN", "LACHE", "TIMIDE", "PRESSÉ", "SÉRIEUX", "JOVIAL", "NAIF", "MODESTE", "DOUX",
+            "DISCRET", "PUDIQUE", "FOUFOU", "CALME", "GENTIL", "MALPOLI", "PRUDENT", "BIZARRE"};
+
+    /**
+     * Comme dans le jeu : descriptions des talents, table de 78 pointeurs, puis les 78 noms de 13 octets ;
+     * et les 25 noms de natures à la suite, suivis de leur table de pointeurs.
+     */
+    private void buildPokemonTexts() {
+        int descs = alloc(78 * 16);
+        int table = alloc(78 * 4 + 78 * 13 + 32);
+        int names = table + 78 * 4;
+        for (int i = 0; i < 78; i++) {
+            text(descs + i * 16, i == 0 ? "AUCUN" : "EFFET " + (char) ('A' + i % 26));
+            ptr(table + i * 4, descs + i * 16);
+            text(names + i * 13, switch (i) {
+                case 0 -> "-------";
+                case ABILITY_1 -> "ENGRAIS";
+                case ABILITY_2 -> "CHLOROPHYLE";
+                default -> "TALENT " + (char) ('A' + i % 26);
+            });
+        }
+        int len = 0;
+        for (String n : NATURES) len += n.length() + 1;
+        int strings = alloc(len + 4 + 25 * 4);
+        int at = strings;
+        int[] ptrs = new int[25];
+        for (int i = 0; i < 25; i++) {
+            ptrs[i] = at;
+            text(at, NATURES[i]);
+            at += NATURES[i].length() + 1;
+        }
+        int natureTable = (at + 3) & ~3;
+        for (int i = 0; i < 25; i++) ptr(natureTable + i * 4, ptrs[i]);
+    }
+
     private void buildSpecies() {
         int n = GameProfile.SPECIES_COUNT;
         int names = alloc(n * GameProfile.SPECIES_NAME_LENGTH);
@@ -219,6 +258,9 @@ public final class SyntheticRom {
         int s1 = stats + GameProfile.SPECIES_INFO_SIZE;
         byte[] base = {45, 49, 50, 51, 52, 53, 10, 12, (byte) 190, 64};
         System.arraycopy(base, 0, rom, s1, base.length);
+        w16(s1 + 10, EV_YIELD);                      // EV donnés : 2 en Attaque, 1 en Vitesse
+        rom[s1 + 22] = (byte) ABILITY_1;
+        rom[s1 + 23] = (byte) ABILITY_2;
         int s2 = stats + 2 * GameProfile.SPECIES_INFO_SIZE;
         rom[s2] = 100;
         rom[s2 + 6] = 13;

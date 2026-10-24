@@ -86,6 +86,7 @@ public final class SelfTest {
         test("Herbe haute : images de l'effet retrouvées dans la ROM", SelfTest::tallGrassGraphics);
         test("Animations d'attaque : scripts, images et sons de la ROM", SelfTest::moveAnimations);
         test("Pokémon : stats Gen 3, sauvegarde, ancien format complété", SelfTest::pokemonModel);
+        test("Résumé : talents et natures de la ROM, EV / IV, fenêtre et barre d'équipe", SelfTest::summary);
         test("Combat : dégâts, efficacité, statut, K.O., expérience, nouvelle attaque", SelfTest::battleEngine);
         test("Combat : capture, fuite, dresseur et remplacement après K.O.", SelfTest::battleActions);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
@@ -611,7 +612,8 @@ public final class SelfTest {
         for (int i = 0; i < 120; i++) g.simulateFrame();
         check(g.save.playFrames >= 120, "le temps de jeu avance dans le monde");
         g.push(new StartMenuScene(g, w));
-        tap(g, Button.DOWN);
+        tap(g, Button.DOWN);                      // Pokédex
+        tap(g, Button.DOWN);                      // carte de dresseur
         tap(g, Button.A);
         check(g.windowOpen("carte-dresseur") && g.top() == w, "le menu ouvre la carte de dresseur (fenêtre)");
         check(g.save.trainerId >= 0 && g.save.trainerId < 65536, "n° ID attribué : " + g.save.trainerId);
@@ -999,7 +1001,7 @@ public final class SelfTest {
         g.input().set(Button.A, false);
         check(g.top() instanceof OverworldScene, "retour au monde après la fuite");
         eq(1, g.save.party.size(), "l'équipe est toujours là");
-        eq(20, g.save.party.get(0).length, "équipe enregistrée au format complet");
+        eq(dev.orvaen.mmo.battle.Pokemon.SAVE_SIZE, g.save.party.get(0).length, "équipe enregistrée au format complet");
     }
 
     /** Combat complet contre un dresseur : attaques jusqu'à la victoire, puis retour au monde. */
@@ -1237,6 +1239,64 @@ public final class SelfTest {
     }
 
     /** Clic de souris sur un point de la fenêtre (vue 1280x800). */
+    private static void summary() {
+        GameData d = data();
+        var t = d.texts();
+        check(t.abilitiesFound(), "table des talents retrouvée");
+        eq("Engrais", t.ability(SyntheticRom.ABILITY_1), "nom du talent 1");
+        eq("Chlorophyle", t.ability(SyntheticRom.ABILITY_2), "nom du talent 2");
+        eq("EFFET B", t.abilityDescription(1), "description du talent");
+        check(t.naturesFound(), "table des natures retrouvée");
+        eq("Malpoli", t.nature(22), "nature 22");
+        eq("Assuré", t.nature(5), "nature avec accent");
+
+        var p = dev.orvaen.mmo.battle.Pokemon.wild(d, 1, 50, new java.util.Random(3));
+        p.abilitySlot = 1;
+        eq(SyntheticRom.ABILITY_2, p.ability(), "2e talent");
+        int atk = p.stat(dev.orvaen.mmo.battle.Pokemon.ATTACK);
+        p.gainEvs(d.species.get(1));
+        eq(2, p.evs[dev.orvaen.mmo.battle.Pokemon.ATTACK], "EV d'Attaque gagnés");
+        eq(1, p.evs[dev.orvaen.mmo.battle.Pokemon.SPEED], "EV de Vitesse gagnés");
+        p.evs[dev.orvaen.mmo.battle.Pokemon.ATTACK] = 252;
+        check(p.stat(dev.orvaen.mmo.battle.Pokemon.ATTACK) > atk + 20, "les EV comptent dans les stats");
+        java.util.Arrays.fill(p.evs, 0);
+        p.evs[0] = 255; p.evs[1] = 254;
+        for (int i = 0; i < 10; i++) p.gainEvs(d.species.get(1));
+        eq(dev.orvaen.mmo.battle.Pokemon.MAX_EV_TOTAL, p.evTotal(), "510 EV au plus");
+        eq(255, p.evs[1], "255 EV au plus par stat");
+        var back = dev.orvaen.mmo.battle.Pokemon.fromSave(d, p.toSave(), "");
+        check(java.util.Arrays.equals(p.evs, back.evs) && back.abilitySlot == 1, "EV et talent sauvegardés");
+        var old = dev.orvaen.mmo.battle.Pokemon.fromSave(d, java.util.Arrays.copyOf(p.toSave(), 20), "");
+        eq(0, old.evTotal(), "ancien format : EV à zéro");
+
+        Game g = game();
+        OverworldScene w = world(g);
+        g.save.party.clear();
+        g.save.partyNames.clear();
+        g.save.party.add(p.toSave());
+        g.save.party.add(dev.orvaen.mmo.battle.Pokemon.wild(g.data, 1, 7, new java.util.Random(1)).toSave());
+        g.renderWindow(1280, 720);
+        java.awt.geom.Rectangle2D slot = dev.orvaen.mmo.scenes.PartyBarProbe.slot(1, 1280, 720);
+        click(g, new java.awt.Point((int) slot.getCenterX(), (int) slot.getCenterY()));
+        check(g.windowOpen(dev.orvaen.mmo.scenes.SummaryWindow.ID), "clic sur l'équipe → résumé");
+        var win = (dev.orvaen.mmo.scenes.SummaryWindow) g.windows().get(0);
+        eq(1, win.index(), "résumé du 2e Pokémon");
+        for (int tab = 0; tab < 3; tab++) {
+            click(g, win.anchor("tab" + tab));
+            eq(tab, win.tab(), "onglet " + tab);
+            BufferedImage img = g.renderWindow(1280, 720);
+            check(img.getRGB(640, 360) != 0, "résumé dessiné");
+        }
+        click(g, win.anchor("next"));
+        eq(0, win.index(), "› : Pokémon suivant (on boucle)");
+        click(g, win.anchor("close"));
+        check(!g.windowOpen(dev.orvaen.mmo.scenes.SummaryWindow.ID), "× ferme le résumé");
+        g.input().type("e");
+        g.simulateFrame();
+        check(g.windowOpen(dev.orvaen.mmo.scenes.SummaryWindow.ID), "touche E : résumé de l'équipe");
+        check(w != null, "monde");
+    }
+
     private static void click(Game g, java.awt.Point p) {
         g.input().move(p.x, p.y);
         g.simulateFrame();
@@ -1339,6 +1399,7 @@ public final class SelfTest {
         g.save.look = PlayerLook.defaults();
         OverworldScene w = world(g);
         g.push(new StartMenuScene(g, w));
+        tap(g, Button.DOWN);                      // Pokédex
         tap(g, Button.DOWN);                      // carte de dresseur
         tap(g, Button.DOWN);                      // PERSO
         tap(g, Button.A);

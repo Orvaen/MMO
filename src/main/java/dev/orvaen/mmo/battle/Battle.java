@@ -786,6 +786,7 @@ public final class Battle {
         long each = Math.max(1, total / winners.size());
         for (int i : winners) {
             Pokemon p = playerTeam.get(i);
+            p.gainEvs(foe.base());                              // EV : même au niveau 100
             if (p.level >= 100) continue;
             say(p.name() + " gagne " + each + " points EXP. !");
             p.exp += each;

@@ -17,9 +17,9 @@ import java.awt.geom.Rectangle2D;
  */
 public final class StartMenuScene implements Scene {
 
-    private static final String[] ITEMS = {"Pokédex", "Carte de dresseur", "Personnage", "Cartes", "Sauvegarder", "Retour"};
+    private static final String[] ITEMS = {"Pokémon", "Pokédex", "Carte de dresseur", "Personnage", "Cartes", "Sauvegarder", "Retour"};
     private static final String[] HINTS = {
-            "Espèces vues et capturées", "Ton profil, ton temps de jeu, tes badges", "Modifier ton apparence",
+            "Ton équipe : talents, natures, IV, EV, attaques", "Espèces vues et capturées", "Ton profil, ton temps de jeu, tes badges", "Modifier ton apparence",
             "Aller sur une autre carte", "Enregistrer la partie", "Revenir au jeu"
     };
     private static final double PANEL_W = 260, HEADER_H = 46, ITEM_H = 48;
@@ -89,15 +89,20 @@ public final class StartMenuScene implements Scene {
         switch (i) {
             case 0 -> {
                 game.pop();
-                game.openWindow(new DexWindow(game));
+                if (game.save.party.isEmpty()) world.showMessage("Tu n'as pas encore de Pokémon.");
+                else world.openSummary(0);
             }
             case 1 -> {
                 game.pop();
+                game.openWindow(new DexWindow(game));
+            }
+            case 2 -> {
+                game.pop();
                 game.openWindow(new TrainerCardWindow(game));
             }
-            case 2 -> game.replace(new CharacterCreatorScene(game, true));
-            case 3 -> game.replace(new MapListScene(game, world));
-            case 4 -> {
+            case 3 -> game.replace(new CharacterCreatorScene(game, true));
+            case 4 -> game.replace(new MapListScene(game, world));
+            case 5 -> {
                 world.rememberPosition();
                 game.save.store();
                 game.pop();

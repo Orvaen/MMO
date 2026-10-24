@@ -60,6 +60,7 @@ public final class OverworldScene implements Scene {
     final MapView view;
     final MessageBox box = new MessageBox();
     private final GrassEffects grass;
+    private final PartyBar party;
     private final FollowerPokemon follower;
     private final OverworldScriptHost host;
     private PlayerSprite avatar;
@@ -98,6 +99,7 @@ public final class OverworldScene implements Scene {
         this.view = new MapView(game.data);
         this.host = new OverworldScriptHost(this);
         this.grass = new GrassEffects(game.data.fieldEffects());
+        this.party = new PartyBar(game);
         this.follower = new FollowerPokemon(game.data.icons(), game.data.followerSprites(), game.data.species::nationalNumber);
         refreshAvatar();
         startNewGameIfNeeded();
@@ -180,6 +182,11 @@ public final class OverworldScene implements Scene {
             if (doors.done() && doors.stage() < 0) doors.clear();
         }
         box.update(in);
+        // clic sur un Pokémon de la barre d'équipe : son résumé
+        if (in.mousePressed()) {
+            int slot = party.slotAt(in.mouseX(), in.mouseY(), game.viewWidth(), game.viewHeight());
+            if (slot >= 0) openSummary(slot);
+        }
 
         if (vm != null) {
             updateScript(in);
@@ -223,7 +230,19 @@ public final class OverworldScene implements Scene {
         game.save.store();
     }
 
-    /** Start : menu. P / C : Pokédex / carte de dresseur (comme PokeMMO). Select : liste des cartes. */
+    /** Résumé du Pokémon n° {@code slot} de l'équipe (la fenêtre déjà ouverte change de Pokémon). */
+    void openSummary(int slot) {
+        for (var w : game.windows()) {
+            if (w instanceof SummaryWindow sw) {
+                sw.show(slot);
+                game.openWindow(sw);                      // repasse devant
+                return;
+            }
+        }
+        game.openWindow(new SummaryWindow(game, slot));
+    }
+
+    /** Start : menu. P / C / E : Pokédex / carte de dresseur / équipe (comme PokeMMO). Select : liste des cartes. */
     private boolean handleMenus(Input in) {
         if (in.pressed(Button.START)) {
             game.push(new StartMenuScene(game, this));
@@ -232,6 +251,7 @@ public final class OverworldScene implements Scene {
         for (char c : in.typed().toLowerCase(Locale.ROOT).toCharArray()) {
             if (c == 'p') game.toggleWindow(new DexWindow(game));
             if (c == 'c') game.toggleWindow(new TrainerCardWindow(game));
+            if (c == 'e' && !game.save.party.isEmpty()) game.toggleWindow(new SummaryWindow(game, 0));
         }
         if (in.pressed(Button.SELECT)) {
             game.push(new MapListScene(game, this));
@@ -811,6 +831,7 @@ public final class OverworldScene implements Scene {
         // Interface
         OverworldHud.drawAreaName(g, h, map.name, areaPopupTimer);
         if (noticeTimer > 0 && notice != null) OverworldHud.drawNotice(g, w, h, notice);
+        party.draw(g, w, h);
         if (monPic > 0) OverworldHud.drawMonPic(g, w, h, game.data.species.frontSprite(monPic));
         box.render(g, w, h);
     }

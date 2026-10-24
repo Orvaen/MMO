@@ -52,6 +52,7 @@ public final class GameData {
     private final Lazy<dev.orvaen.mmo.battle.MoveAnimations> moveAnimations;
     private final Lazy<PokemonIcons> icons;
     private final Lazy<FollowerSprites> followerSprites;
+    private final Lazy<PokemonTexts> texts;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -75,6 +76,7 @@ public final class GameData {
         this.moveAnimations = new Lazy<>(() -> new dev.orvaen.mmo.battle.MoveAnimations(rom));
         this.icons = new Lazy<>(() -> new PokemonIcons(rom));
         this.followerSprites = new Lazy<>(FollowerSprites::fromConfig);
+        this.texts = new Lazy<>(() -> new PokemonTexts(rom));
     }
 
     /** Images de l'écran titre (cherchées dans la ROM au premier appel). */
@@ -107,6 +109,11 @@ public final class GameData {
         return followerSprites.get();
     }
 
+    /** Noms des talents et des natures (résumé d'un Pokémon), lus au premier besoin. */
+    public PokemonTexts texts() {
+        return texts.get();
+    }
+
     /** Effets de terrain du monde (herbe haute qui bouge…). */
     public dev.orvaen.mmo.world.FieldEffects fieldEffects() {
         return fieldEffects.get();
@@ -126,6 +133,7 @@ public final class GameData {
             try {
                 fieldEffects();
                 icons();
+                texts();
                 battle();
                 battleGraphics();
                 moveAnimations();

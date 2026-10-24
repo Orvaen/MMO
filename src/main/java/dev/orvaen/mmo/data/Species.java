@@ -8,7 +8,22 @@ public record Species(
         int type1, int type2,
         int catchRate,
         int expYield,
-        int growthRate) {
+        int evYield,
+        int growthRate,
+        int ability1, int ability2) {
+
+    /**
+     * EV donnés quand on bat cette espèce, pour la stat {@code stat} (0 PV, 1 Att, 2 Déf, 3 Vit, 4 Att.Spé,
+     * 5 Déf.Spé) : 2 bits par stat dans la ROM.
+     */
+    public int evYield(int stat) {
+        return evYield >> (stat * 2) & 3;
+    }
+
+    /** Talent n° {@code slot} (0 ou 1) ; le 2e talent vide revient au 1er. */
+    public int ability(int slot) {
+        return slot == 1 && ability2 != 0 ? ability2 : ability1;
+    }
 
     private static final String[] TYPE_NAMES = {
             "Normal", "Combat", "Vol", "Poison", "Sol", "Roche", "Insecte", "Spectre", "Acier", "???",
