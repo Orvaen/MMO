@@ -78,7 +78,11 @@ public final class GameData {
         this.icons = new Lazy<>(() -> new PokemonIcons(rom));
         this.followerSprites = new Lazy<>(FollowerSprites::fromConfig);
         this.texts = new Lazy<>(() -> new PokemonTexts(rom));
-        this.regionMap = new Lazy<>(() -> new RegionMap(rom));
+        this.regionMap = new Lazy<>(() -> {
+            RegionMap m = new RegionMap(rom);
+            System.out.println("Carte de la région : " + (m.available() ? "trouvée" : "introuvable") + " (" + m.diagnosis() + ")");
+            return m;
+        });
     }
 
     /** Images de l'écran titre (cherchées dans la ROM au premier appel). */

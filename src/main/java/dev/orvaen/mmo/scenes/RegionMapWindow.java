@@ -193,7 +193,9 @@ public final class RegionMapWindow implements UiWindow {
         if (img == null) {
             g.setFont(HiUi.font((float) (13 * s), false));
             g.setColor(HiUi.MUTED);
-            HiUi.centered(g, "La carte de la région n'a pas été trouvée dans cette ROM.", m.getX(), m.getY(), m.getWidth(), m.getHeight());
+            HiUi.centered(g, "La carte de la région n'a pas été trouvée dans cette ROM.", m.getX(), m.getY() - 12 * s, m.getWidth(), m.getHeight());
+            g.setFont(HiUi.font((float) (11 * s), false));
+            HiUi.centered(g, map.diagnosis(), m.getX(), m.getY() + 14 * s, m.getWidth(), m.getHeight());
             return;
         }
         double k = m.getWidth() / RegionMap.VIEW_W;

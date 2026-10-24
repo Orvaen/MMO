@@ -258,6 +258,17 @@ public final class SyntheticRom {
      * (LZ, 1200 octets) à la suite, palette de 80 couleurs suivie du repère, et 4 grilles de lieux.
      */
     private void buildRegionMap() {
+        // leurre : 4 autres écrans de 30 × 20 cases à la suite (palette 9 : pas ceux de la carte), placés avant
+        java.io.ByteArrayOutputStream decoy = new java.io.ByteArrayOutputStream();
+        for (int m = 0; m < 4; m++) {
+            byte[] tm = new byte[1200];
+            for (int i = 0; i < 600; i++) tm[i * 2 + 1] = (byte) 0x90;
+            byte[] lz = Lz77Encoder.encode(tm);
+            decoy.write(lz, 0, lz.length);
+            while (decoy.size() % 4 != 0) decoy.write(0);
+        }
+        int decoyAt = alloc(decoy.size());
+        System.arraycopy(decoy.toByteArray(), 0, rom, decoyAt, decoy.size());
         byte[] tiles = new byte[0x2800];
         for (int i = 32; i < 64; i++) tiles[i] = 0x11;            // tuile 1 : couleur 1 partout
         int tileData = alloc(0x2800 / 4);

@@ -47,22 +47,50 @@ public final class RegionMap {
 
     public RegionMap(Rom rom) {
         this.rom = rom;
-        int first = findTilemaps();
         for (int i = 0; i < MAPS; i++) tilemaps[i] = -1;
         int t = -1;
-        if (first >= 0) {
-            int o = first;
-            for (int i = 0; i < MAPS; i++) {
-                tilemaps[i] = o;
+        // Plusieurs écrans du jeu font 30 × 20 cases : on essaie chaque groupe de 4 plans à la suite et on
+        // garde celui dont les tuiles (juste avant) et les palettes (5 au plus) correspondent.
+        for (int first = findTilemaps(0); first >= 0 && t < 0; first = findTilemaps(first + 4)) {
+            int[] maps = new int[MAPS];
+            int o = first, maxTile = 0;
+            boolean ok = true;
+            for (int i = 0; i < MAPS && ok; i++) {
+                maps[i] = o;
+                byte[] tm;
+                try {
+                    tm = Lz77.decompress(rom, o);
+                } catch (RuntimeException e) {
+                    ok = false;
+                    break;
+                }
+                for (int k = 0; k + 1 < tm.length; k += 2) {
+                    int e = (tm[k] & 0xFF) | (tm[k + 1] & 0xFF) << 8;
+                    maxTile = Math.max(maxTile, e & 0x3FF);
+                    if (e >> 12 >= PAL_COLORS / 16) ok = false;      // palette qui n'existe pas : pas la carte
+                }
                 o = (Lz77.end(rom, o) + 3) & ~3;
             }
-            t = findTiles(first);
+            if (!ok) continue;
+            int found = findTiles(first, (maxTile + 1) * 32);
+            if (found >= 0) {
+                t = found;
+                System.arraycopy(maps, 0, tilemaps, 0, MAPS);
+            }
         }
         this.tiles = t;
         this.palette = findPalette();
         int g = findGrids();
         this.grids = g;
         this.none = g < 0 ? -1 : mostFrequent(g);
+    }
+
+    /** Ce qui a été trouvé ou non (pour comprendre une ROM où la carte ne s'affiche pas). */
+    public String diagnosis() {
+        return "plans " + (tilemaps[0] >= 0 ? String.format("0x%X", tilemaps[0]) : "✘")
+                + " · tuiles " + (tiles >= 0 ? String.format("0x%X", tiles) : "✘")
+                + " · palette " + (palette >= 0 ? String.format("0x%X", palette) : "✘")
+                + " · lieux " + (grids >= 0 ? String.format("0x%X", grids) : "✘");
     }
 
     /** Tout a été retrouvé : la carte peut s'afficher. */
@@ -136,9 +164,9 @@ public final class RegionMap {
         return rom.u8(o + 1) | rom.u8(o + 2) << 8 | rom.u8(o + 3) << 16;
     }
 
-    /** 4 plans d'écran de 1200 octets à la suite : le premier est Kanto. */
-    private int findTilemaps() {
-        for (int o = 0; o + 16 <= rom.size(); o += 4) {
+    /** Prochain groupe de 4 plans d'écran de 1200 octets à la suite, à partir de {@code from}. */
+    private int findTilemaps(int from) {
+        for (int o = (from + 3) & ~3; o + 16 <= rom.size(); o += 4) {
             if (lzSize(o) != TILEMAP_BYTES) continue;
             int p = o, n = 0;
             while (n < MAPS && lzSize(p) == TILEMAP_BYTES) {
@@ -152,10 +180,16 @@ public final class RegionMap {
         return -1;
     }
 
-    /** Les tuiles : le bloc LZ de 0x2800 octets le plus proche avant les plans (3 blocs avant, dans le jeu). */
-    private int findTiles(int before) {
+    /**
+     * Les tuiles : le bloc LZ le plus proche avant les plans qui contient au moins {@code need} octets de
+     * tuiles (dans le jeu : 3 blocs avant, 0x2800 octets).
+     */
+    private int findTiles(int before, int need) {
         for (int o = (before - 4) & ~3; o >= Math.max(0, before - 0x10000); o -= 4) {
-            if (lzSize(o) == TILES_BYTES && Lz77.end(rom, o) > 0 && Lz77.end(rom, o) <= before) return o;
+            int size = lzSize(o);
+            if (size < need || size > 0x8000 || size % 32 != 0) continue;
+            int end = Lz77.end(rom, o);
+            if (end > 0 && end <= before) return o;
         }
         return -1;
     }
