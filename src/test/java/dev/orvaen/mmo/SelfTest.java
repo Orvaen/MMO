@@ -1030,7 +1030,11 @@ public final class SelfTest {
         g.save.party.add(new int[]{1, 10});
         g.push(new OverworldScene(g));
         OverworldScene w = world(g);
-        check(w.followerTile() == null, "à l'arrivée, il attend sous le joueur");
+        check(w.followerTile() == null, "à l'arrivée, il est d'abord sous le joueur");
+        for (int i = 0; i < 20; i++) g.simulateFrame();
+        int[] out = w.followerTile();
+        check(out != null, "il sort tout de suite à côté du joueur");
+        eq(1, Math.abs(out[0] - w.playerX()) + Math.abs(out[1] - w.playerY()), "sur une case voisine");
         var icon = g.data.icons().frames(1);
         check(icon != null && icon.length == 2, "icône animée lue dans la ROM");
         eq(GbaGfx.bgr555ToArgb(SyntheticRom.ICON_COLOR), icon[0].getRGB(16, 16), "couleur de l'icône");

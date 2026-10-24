@@ -173,6 +173,7 @@ public final class OverworldScene implements Scene {
         grass.update(map, player, npcs.all());
         follower.setSpecies(leadSpecies());
         follower.update(player);
+        releaseFollower();
         player.tick();
         if (doorPhase == DoorPhase.NONE && doors.active()) {
             doors.update();                               // porte ouverte / fermée par un script
@@ -328,6 +329,7 @@ public final class OverworldScene implements Scene {
 
     private void startStep(Direction dir, boolean running, int distance) {
         player.startStep(dir, running, distance, runFrames);
+        follower.update(player);                          // le Pokémon part dans la même frame que le joueur
     }
 
     /** Une frame du pas en cours ; à l'arrivée : porte, warp, déclencheurs, rencontres, pas suivant. */
@@ -648,6 +650,31 @@ public final class OverworldScene implements Scene {
         return true;
     }
 
+    /**
+     * Juste après une arrivée, le Pokémon est caché sous le joueur : dès que celui-ci est libre (pas de porte,
+     * pas de script, pas de pas automatique), il sort sur une case voisine — derrière le joueur si possible.
+     */
+    private void releaseFollower() {
+        if (!follower.underPlayer(player) || player.moving || player.hidden || doorPhase != DoorPhase.NONE
+                || autoStep != null || vm != null || leadSpecies() == 0) return;
+        Direction f = player.facing;
+        Direction[] order = {f.opposite(), sideOf(f, true), sideOf(f, false), f};
+        for (Direction d : order) {
+            int tx = player.x + d.dx, ty = player.y + d.dy;
+            if (map.layout.inBounds(tx, ty) && canEnter(map, tx, ty) && map.warpAt(tx, ty).isEmpty()) {
+                follower.popOut(tx, ty);
+                return;
+            }
+        }
+    }
+
+    private static Direction sideOf(Direction d, boolean left) {
+        return switch (d) {
+            case UP, DOWN -> left ? Direction.LEFT : Direction.RIGHT;
+            case LEFT, RIGHT -> left ? Direction.UP : Direction.DOWN;
+        };
+    }
+
     /** Espèce du premier Pokémon en forme de l'équipe (celui qui suit le joueur), ou 0. */
     private int leadSpecies() {
         for (int[] m : game.save.party) {
@@ -748,7 +775,7 @@ public final class OverworldScene implements Scene {
         boolean tallGrass = map.isLandEncounterAt(player.x, player.y)
                 && map.behaviorAt(player.x, player.y) == BEHAVIOR_TALL_GRASS;
         // Le Pokémon qui suit : derrière le joueur s'il est plus haut sur l'écran, devant sinon
-        boolean followerBehind = follower.exactY(player, interp) <= playerY;
+        boolean followerBehind = follower.exactY(interp) <= playerY;
         if (followerBehind) follower.draw(g, player, originX, originY, zoom, interp);
         player.draw(g, avatar, originX, originY, zoom, interp, view.render(map).below(), tallGrass);
         if (!followerBehind) follower.draw(g, player, originX, originY, zoom, interp);
