@@ -1281,7 +1281,7 @@ public final class SelfTest {
         check(g.windowOpen(dev.orvaen.mmo.scenes.SummaryWindow.ID), "clic sur l'équipe → résumé");
         var win = (dev.orvaen.mmo.scenes.SummaryWindow) g.windows().get(0);
         eq(1, win.index(), "résumé du 2e Pokémon");
-        for (int tab = 0; tab < 3; tab++) {
+        for (int tab = 0; tab < 4; tab++) {
             click(g, win.anchor("tab" + tab));
             eq(tab, win.tab(), "onglet " + tab);
             BufferedImage img = g.renderWindow(1280, 720);

@@ -202,6 +202,14 @@ public final class HiWindow {
 
     /** Panneau, barre de titre, bouton de fermeture et poignée de redimensionnement (sans ombre). */
     public void paintFrame(Graphics2D g, String title) {
+        paintFrame(g, title, false);
+    }
+
+    /**
+     * Idem ; avec {@code titleRight}, le titre est calé à droite (près du ×) pour laisser la gauche de la
+     * barre aux onglets en icônes, comme dans PokeMMO.
+     */
+    public void paintFrame(Graphics2D g, String title, boolean titleRight) {
         place();
         double s = scale();
         HiUi.fill(g, HiUi.PANEL, x, y, w, h, 6 * s);
@@ -212,8 +220,9 @@ public final class HiWindow {
 
         g.setFont(HiUi.font((float) (15 * s), true));
         g.setColor(Color.WHITE);
-        g.drawString(title, (float) (x + 14 * s), (float) (y + 25 * s));
         Rectangle2D c = closeButton();
+        double tx = titleRight ? c.getX() - 10 * s - g.getFontMetrics().stringWidth(title) : x + 14 * s;
+        g.drawString(title, (float) tx, (float) (y + 25 * s));
         if (c.contains(game.input().mouseX(), game.input().mouseY())) {
             HiUi.fill(g, new Color(0x3A2333), c.getX(), c.getY(), c.getWidth(), c.getHeight(), 4 * s);
         }

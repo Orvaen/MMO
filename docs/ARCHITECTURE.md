@@ -109,7 +109,7 @@ Le son tourne à part, dans son propre fil d'exécution (`audio/AudioEngine`).
 | `FollowerPokemon` | le premier Pokémon de l'équipe, qui marche derrière le joueur |
 | `MessageBox` | la boîte de dialogue en bas, avec la flèche vers celui qui parle |
 | `PartyBar` | l'équipe à droite de l'écran (icônes, PV) ; un clic ouvre le résumé |
-| `SummaryWindow` | le résumé d'un Pokémon (touche E) : infos, talent, nature, stats avec IV / EV, attaques |
+| `SummaryWindow` | le résumé d'un Pokémon (touche E) : onglets en icônes (infos, stats, hexagone IV / EV, attaques), sprite sur un fond de combat de la ROM |
 
 **Une image du monde** (`OverworldScene.update`) :
 
