@@ -25,6 +25,7 @@ public final class GameData {
     public final dev.orvaen.mmo.audio.AudioEngine audio;
     public final dev.orvaen.mmo.audio.Songs songs;
     private Trainers trainers;
+    private TitleGraphics title;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -43,6 +44,12 @@ public final class GameData {
     }
 
     /** Dresseurs de la ROM (cherchés au premier combat). */
+    /** Images de l'écran titre (cherchées dans la ROM au premier appel). */
+    public TitleGraphics titleGraphics() {
+        if (title == null) title = new TitleGraphics(rom);
+        return title;
+    }
+
     public Trainers trainers() {
         if (trainers == null) trainers = new Trainers(rom, species.count());
         return trainers;

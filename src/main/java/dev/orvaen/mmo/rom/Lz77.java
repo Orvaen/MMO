@@ -16,6 +16,35 @@ public final class Lz77 {
         return size > 0 && size <= MAX_OUTPUT;
     }
 
+    /**
+     * Position juste après un bloc compressé (pour lire des données rangées à la suite),
+     * ou -1 si le bloc est invalide.
+     */
+    public static int end(Rom rom, int offset) {
+        byte[] src = rom.raw();
+        if (offset < 0 || offset + 4 > src.length || (src[offset] & 0xFF) != 0x10) return -1;
+        int size = (src[offset + 1] & 0xFF) | (src[offset + 2] & 0xFF) << 8 | (src[offset + 3] & 0xFF) << 16;
+        if (size > MAX_OUTPUT) return -1;
+        int in = offset + 4, pos = 0;
+        while (pos < size) {
+            if (in >= src.length) return -1;
+            int flags = src[in++] & 0xFF;
+            for (int bit = 7; bit >= 0 && pos < size; bit--) {
+                if ((flags & (1 << bit)) == 0) {
+                    in++;
+                    pos++;
+                } else {
+                    if (in + 1 >= src.length) return -1;
+                    int b0 = src[in] & 0xFF, b1 = src[in + 1] & 0xFF;
+                    in += 2;
+                    if (((b0 & 0x0F) << 8 | b1) + 1 > pos) return -1;   // référence avant le début
+                    pos += (b0 >> 4) + 3;
+                }
+            }
+        }
+        return in <= src.length ? in : -1;
+    }
+
     public static byte[] decompress(Rom rom, int offset) {
         return decompress(rom.raw(), offset);
     }

@@ -1110,10 +1110,25 @@ public final class SelfTest {
         BufferedImage img = g.renderWindow(1280, 800);
         check(img != null, "rendu possible");
 
+        // Écran titre lu dans la ROM : logo, Pokémon, texte, cadre, flammes
+        dev.orvaen.mmo.data.TitleGraphics tg = g.data.titleGraphics();
+        check(tg.available() && tg.border != null && tg.flames != null && tg.slash != null, "écran titre trouvé dans la ROM");
+        eq(tg.flames.length, 10, "10 images de flamme");
+        eq(tg.logo.getRGB(5 * 8 + 3, 2 * 8 + 3), GbaGfx.bgr555ToArgb(SyntheticRom.TITLE_LOGO), "logo (8 bits) à sa place");
+        eq(tg.monster.getRGB(12 * 8, 10 * 8), GbaGfx.bgr555ToArgb(SyntheticRom.TITLE_MON), "Pokémon de la boîte (palette 13)");
+        eq(tg.pressStart.getRGB(10 * 8, 17 * 8 + 2), GbaGfx.bgr555ToArgb(SyntheticRom.TITLE_TEXT), "« PRESS START »");
+        eq(tg.copyrightOnly.getRGB(10 * 8, 17 * 8 + 2), GbaGfx.bgr555ToArgb(SyntheticRom.TITLE_BORDER),
+                "« PRESS START » éteint pendant le clignotement (couleur du fond)");
+        eq(tg.border.getRGB(3, 3), GbaGfx.bgr555ToArgb(SyntheticRom.TITLE_BORDER), "cadre (palette 14)");
+
         dev.orvaen.mmo.scenes.TitleScene t = new dev.orvaen.mmo.scenes.TitleScene(g);
         g.push(t);
-        BufferedImage frame = g.renderWindow(1280, 800);
-        check(frame.getRGB(640, 30) != frame.getRGB(5, 5) || frame.getRGB(640, 30) != 0xFF000000, "fond dessiné");
+        for (int i = 0; i < 60; i++) g.simulateFrame();
+        BufferedImage frame = g.renderWindow(1200, 800);
+        eq(frame.getRGB(600, 400 - 30), GbaGfx.bgr555ToArgb(SyntheticRom.TITLE_MON), "Pokémon dessiné au centre");
+        check(t.waitingForStart(), "attend « PRESS START »");
+        tap(g, Button.START);
+        check(!t.waitingForStart(), "Start → menu");
         click(g, t.anchor("PLAY"));
         for (int i = 0; i < 30; i++) g.simulateFrame();
         check(g.top() instanceof CharacterCreatorScene, "sans personnage : Jouer → création");
@@ -1124,6 +1139,7 @@ public final class SelfTest {
         dev.orvaen.mmo.scenes.TitleScene t2 = new dev.orvaen.mmo.scenes.TitleScene(g2);
         g2.push(t2);
         g2.renderWindow(1280, 800);
+        tap(g2, Button.A);
         click(g2, t2.anchor("CHARACTER"));
         check(g2.top() instanceof CharacterCreatorScene, "Modifier le personnage");
         tap(g2, Button.B);
@@ -1139,6 +1155,7 @@ public final class SelfTest {
         dev.orvaen.mmo.scenes.TitleScene t3 = new dev.orvaen.mmo.scenes.TitleScene(g2);
         g2.push(t3);
         g2.renderWindow(1280, 800);
+        tap(g2, Button.START);
         click(g2, t3.anchor("NEW_GAME"));
         g2.renderWindow(1280, 800);
         click(g2, t3.confirmAnchor(1));

@@ -24,10 +24,15 @@ public final class SyntheticRom {
     private int cursor = 0x400;
 
     public static byte[] build() {
-        return new SyntheticRom().make();
+        return new SyntheticRom().make(true);
     }
 
-    private byte[] make() {
+    /** Variante sans écran titre (pour essayer de vraies images à la place). */
+    public static byte[] buildWithoutTitleScreen() {
+        return new SyntheticRom().make(false);
+    }
+
+    private byte[] make(boolean titleScreen) {
         ascii(0xA0, "POKEMON FIRE");
         ascii(0xAC, "BPRE");
         rom[0xBC] = 0;
@@ -42,6 +47,7 @@ public final class SyntheticRom {
         buildTileAnims();
         buildResetScript();
         buildSongs();
+        if (titleScreen) buildTitleScreen();
         return rom;
     }
 
@@ -306,6 +312,88 @@ public final class SyntheticRom {
         ptr(header + 8, track);
         int table = alloc(SONG_COUNT * 8);
         for (int i = 0; i < SONG_COUNT; i++) ptr(table + i * 8, header);
+    }
+
+    /** Couleurs repères de l'écran titre (BGR555). */
+    public static final int TITLE_LOGO = 0x7FE0, TITLE_MON = 0x001F, TITLE_TEXT = 0x7FFF, TITLE_BORDER = 0x2108,
+            TITLE_FLAME = 0x01DF;
+
+    /**
+     * Écran titre inventé, rangé comme dans Rouge Feu :
+     * logo 8 bits (case (5..24, 2) couleur 5), Pokémon (cases (10..19, 8..14)), texte (ligne 17),
+     * puis à part : cadre (partout), reflet, flammes (10 images 16x16).
+     */
+    private void buildTitleScreen() {
+        java.io.ByteArrayOutputStream main = new java.io.ByteArrayOutputStream();
+        int[] logoPal = new int[256];
+        logoPal[5] = TITLE_LOGO;
+        palette(main, logoPal);
+        byte[] logoTiles = new byte[128];
+        java.util.Arrays.fill(logoTiles, 64, 128, (byte) 5);
+        lzBlock(main, logoTiles);
+        lzBlock(main, titleMap(5, 24, 2, 2, 0));
+        int[] monPal = new int[16];
+        monPal[3] = TITLE_MON;
+        palette(main, monPal);
+        lzBlock(main, solidTiles(2, 3));
+        lzBlock(main, titleMap(10, 19, 8, 14, 13));
+        int[] bgPal = new int[16];
+        bgPal[1] = TITLE_TEXT;
+        bgPal[2] = TITLE_BORDER;
+        bgPal[6] = TITLE_BORDER;                          // « PRESS START » éteint : couleur du fond
+        palette(main, bgPal);
+        lzBlock(main, solidTiles(2, 1));
+        lzBlock(main, titleMap(8, 21, 17, 17, 15));
+        put(main.toByteArray());
+
+        java.io.ByteArrayOutputStream sprites = new java.io.ByteArrayOutputStream();
+        lzBlock(sprites, solidTiles(4, 2));
+        lzBlock(sprites, titleMap(0, 29, 0, 19, 14));
+        lzBlock(sprites, solidTiles(64, 1));
+        int[] flamePal = new int[16];
+        flamePal[1] = TITLE_FLAME;
+        palette(sprites, flamePal);
+        lzBlock(sprites, solidTiles(40, 1));
+        put(sprites.toByteArray());
+    }
+
+    /** Tuiles 4 bits : la tuile 0 est vide, les suivantes sont pleines de la couleur donnée. */
+    private static byte[] solidTiles(int count, int color) {
+        byte[] t = new byte[count * 32];
+        java.util.Arrays.fill(t, count > 2 ? 0 : 32, t.length, (byte) (color | color << 4));
+        return t;
+    }
+
+    /** Plan 32x20 : la tuile 1 (palette donnée) dans le rectangle, rien ailleurs. */
+    private static byte[] titleMap(int x0, int x1, int y0, int y1, int palette) {
+        byte[] map = new byte[0x500];
+        for (int y = y0; y <= y1; y++) {
+            for (int x = x0; x <= x1; x++) {
+                int e = 1 | palette << 12;
+                map[(y * 32 + x) * 2] = (byte) e;
+                map[(y * 32 + x) * 2 + 1] = (byte) (e >> 8);
+            }
+        }
+        return map;
+    }
+
+    private static void palette(java.io.ByteArrayOutputStream out, int[] colors) {
+        for (int c : colors) {
+            out.write(c);
+            out.write(c >> 8);
+        }
+    }
+
+    /** Bloc compressé, complété par des zéros jusqu'à un multiple de 4 octets (comme les fichiers .lz du jeu). */
+    private static void lzBlock(java.io.ByteArrayOutputStream out, byte[] data) {
+        byte[] lz = Lz77Encoder.encode(data);
+        out.write(lz, 0, lz.length);
+        while (out.size() % 4 != 0) out.write(0);
+    }
+
+    private void put(byte[] data) {
+        int o = alloc(data.length);
+        System.arraycopy(data, 0, rom, o, data.length);
     }
 
     /** Script « début de partie » : 40 setflag (dont celui du PNJ d'histoire), puis end. */
