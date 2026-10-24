@@ -234,7 +234,7 @@ public final class OptionsWindow implements UiWindow {
         Rectangle2D hd = win.header();
         UiIcons.draw(g, Icon.GEAR, hd.getX() + 14 * s, hd.getCenterY() - 8 * s, 16 * s, HiUi.ACCENT);
         Rectangle2D in = inner();
-        int mx = game.input().mouseX(), my = game.input().mouseY();
+        int mx = game.input().rawMouseX(), my = game.input().rawMouseY();
         boolean muted = audio().muted();
 
         // ligne choisie au clavier : un léger fond

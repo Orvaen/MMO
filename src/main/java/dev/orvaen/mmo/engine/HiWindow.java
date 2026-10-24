@@ -212,30 +212,19 @@ public final class HiWindow {
     public void paintFrame(Graphics2D g, String title, boolean titleRight) {
         place();
         double s = scale();
-        HiUi.fill(g, HiUi.PANEL, x, y, w, h, 6 * s);
-        HiUi.fill(g, dragging() && drag == Drag.MOVE ? new Color(0x23253A) : HiUi.HEADER, x, y, w, HEADER * s, 6 * s);
-        g.setColor(dragging() && drag == Drag.MOVE ? new Color(0x23253A) : HiUi.HEADER);
-        g.fill(new Rectangle2D.Double(x, y + (HEADER - 8) * s, w, 8 * s));
-        HiUi.stroke(g, dragging() ? HiUi.ACCENT : HiUi.PANEL_BORDER, x, y, w, h, 6 * s, 1f);
+        // une seule surface, bordure fine (plus visible pendant qu'on la déplace)
+        HiUi.fill(g, HiUi.PANEL, x, y, w, h, 10 * s);
+        HiUi.stroke(g, dragging() ? HiUi.ACCENT : HiUi.PANEL_BORDER, x, y, w, h, 10 * s, 1f);
 
-        g.setFont(HiUi.font((float) (15 * s), true));
-        g.setColor(Color.WHITE);
+        g.setFont(HiUi.font((float) (14.5 * s), true));
+        g.setColor(HiUi.TEXT);
         Rectangle2D c = closeButton();
-        double tx = titleRight ? c.getX() - 10 * s - g.getFontMetrics().stringWidth(title) : x + 14 * s;
+        double tx = titleRight ? c.getX() - 8 * s - g.getFontMetrics().stringWidth(title) : x + 16 * s;
         g.drawString(title, (float) tx, (float) (y + 25 * s));
-        if (c.contains(game.input().mouseX(), game.input().mouseY())) {
-            HiUi.fill(g, new Color(0x3A2333), c.getX(), c.getY(), c.getWidth(), c.getHeight(), 4 * s);
-        }
-        g.setColor(HiUi.CLOSE);
-        g.setFont(HiUi.font((float) (17 * s), true));
+        boolean overClose = c.contains(game.input().rawMouseX(), game.input().rawMouseY());
+        if (overClose) HiUi.fill(g, new Color(0x3A2333), c.getX(), c.getY(), c.getWidth(), c.getHeight(), 6 * s);
+        g.setColor(overClose ? HiUi.CLOSE : HiUi.MUTED);
+        g.setFont(HiUi.font((float) (17 * s), false));
         HiUi.centered(g, "×", c.getX(), c.getY() - s, c.getWidth(), c.getHeight());
-
-        // poignée : trois petites diagonales dans le coin
-        g.setColor(HiUi.MUTED);
-        g.setStroke(new java.awt.BasicStroke((float) (1.2 * s)));
-        for (int i = 1; i <= 3; i++) {
-            double d = i * 4 * s;
-            g.draw(new java.awt.geom.Line2D.Double(x + w - 4 * s - d, y + h - 4 * s, x + w - 4 * s, y + h - 4 * s - d));
-        }
     }
 }

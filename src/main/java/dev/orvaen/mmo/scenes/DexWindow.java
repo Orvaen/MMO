@@ -287,7 +287,7 @@ public final class DexWindow implements UiWindow {
 
     private void drawToolbar(Graphics2D g, double s) {
         Rectangle2D d = dropdown();
-        boolean over = d.contains(game.input().mouseX(), game.input().mouseY());
+        boolean over = d.contains(game.input().rawMouseX(), game.input().rawMouseY());
         HiUi.fill(g, over || dropdownOpen ? HiUi.SELECTOR_HOVER : HiUi.SELECTOR, d.getX(), d.getY(), d.getWidth(), d.getHeight(), 4 * s);
         HiUi.stroke(g, HiUi.SELECTOR_BORDER, d.getX(), d.getY(), d.getWidth(), d.getHeight(), 4 * s, 1f);
         g.setFont(HiUi.font((float) (12 * s), false));
@@ -314,7 +314,7 @@ public final class DexWindow implements UiWindow {
         Rectangle2D area = grid();
         Shape clip = g.getClip();
         g.clip(new Rectangle2D.Double(area.getX(), area.getY(), area.getWidth(), area.getHeight()));
-        int mx = game.input().mouseX(), my = game.input().mouseY();
+        int mx = game.input().rawMouseX(), my = game.input().rawMouseY();
         int first = firstVisible(), last = Math.min(shown.size(), first + (visibleRows() + 2) * cols());
         for (int i = first; i < last; i++) {
             Species sp = shown.get(i);
@@ -438,7 +438,7 @@ public final class DexWindow implements UiWindow {
         double ty = by + box + 26 * s;
         g.setFont(HiUi.font((float) (15 * s), true));
         g.setColor(Color.WHITE);
-        HiUi.centered(g, known ? sp.name() : "???", x, ty - 18 * s, w, 24 * s);
+        HiUi.centered(g, known ? dev.orvaen.mmo.data.PokemonTexts.pretty(sp.name()) : "???", x, ty - 18 * s, w, 24 * s);
         ty += 16 * s;
         if (!known) {
             g.setFont(HiUi.font((float) (13 * s), false));
@@ -514,7 +514,7 @@ public final class DexWindow implements UiWindow {
         HiUi.fill(g, new Color(0, 0, 0, 80), first.getX() + 2, first.getY() + 4, first.getWidth(), h, 6 * s);
         HiUi.fill(g, HiUi.HEADER, first.getX(), first.getY(), first.getWidth(), h, 4 * s);
         HiUi.stroke(g, HiUi.SELECTOR_BORDER, first.getX(), first.getY(), first.getWidth(), h, 4 * s, 1f);
-        int mx = game.input().mouseX(), my = game.input().mouseY();
+        int mx = game.input().rawMouseX(), my = game.input().rawMouseY();
         g.setFont(HiUi.font((float) (13 * s), false));
         for (int i = 0; i < regions.size(); i++) {
             Rectangle2D r = dropdownItem(i);

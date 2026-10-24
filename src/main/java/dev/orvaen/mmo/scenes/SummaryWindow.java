@@ -203,7 +203,7 @@ public final class SummaryWindow implements UiWindow {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         win.paintFrame(g, "Résumé", true);
         double s = win.scale();
-        int mx = game.input().mouseX(), my = game.input().mouseY();
+        int mx = game.input().rawMouseX(), my = game.input().rawMouseY();
 
         // onglets : icône claire pour l'onglet ouvert, avec un trait dessous
         int hover = -1;
@@ -317,7 +317,7 @@ public final class SummaryWindow implements UiWindow {
         if (sp.hasSecondType()) tx += chip(g, Species.typeName(sp.type2()), new Color(Species.typeColor(sp.type2())), tx, ty, s) + 5 * s;
         if (p.status > 0 && p.status < STATUS.length) chip(g, STATUS[p.status], new Color(0xB8577A), tx, ty, s);
         else if (p.fainted()) chip(g, "K.O.", new Color(0x8A3A4A), tx, ty, s);
-        int mx = game.input().mouseX(), my = game.input().mouseY();
+        int mx = game.input().rawMouseX(), my = game.input().rawMouseY();
         if (teamSize > 1) {
             for (boolean next : new boolean[]{false, true}) {
                 Rectangle2D r = arrow(next);
@@ -369,25 +369,30 @@ public final class SummaryWindow implements UiWindow {
         double labelW = Math.min(118 * s, b.getWidth() * 0.38);
         for (Object[] r : rows) {
             double cy = y + rowH / 2 - 2 * s;
-            UiIcons.draw(g, (Icon) r[0], b.getX(), cy - 7 * s, 14 * s, HiUi.ACCENT);
+            UiIcons.draw(g, (Icon) r[0], b.getX(), cy - 7 * s, 14 * s, HiUi.MUTED);
             g.setFont(HiUi.font((float) (12 * s), false));
             g.setColor(HiUi.MUTED);
             g.drawString((String) r[1], (float) (b.getX() + 22 * s), (float) (cy + 4.5 * s));
-            double vx = b.getX() + labelW, vw = b.getWidth() - labelW, vh = rowH - 6 * s;
-            HiUi.fill(g, HiUi.CELL, vx, cy - vh / 2, vw, vh, vh);
+            double vx = b.getX() + labelW, vw = b.getWidth() - labelW;
             g.setFont(HiUi.font((float) (12.5 * s), true));
             g.setColor(HiUi.TEXT);
             String value = (String) r[2];
-            double textX = vx + 12 * s;
             if (r[1].equals("Nature") && p.natureUp() >= 0) {
-                // l'effet de la nature en deux petites pastilles : +stat (rouge), −stat (bleu)
-                g.drawString(value, (float) textX, (float) (cy + 4.5 * s));
-                double cx = textX + g.getFontMetrics().stringWidth(value) + 8 * s;
-                cx += chip(g, "+" + STAT_SHORT[p.natureUp()], UP, cx, cy - 8 * s, s) + 4 * s;
-                chip(g, "−" + STAT_SHORT[p.natureDown()], DOWN, cx, cy - 8 * s, s);
+                // l'effet de la nature, en couleur : +stat (rouge), −stat (bleu)
+                g.drawString(value, (float) vx, (float) (cy + 4.5 * s));
+                double cx = vx + g.getFontMetrics().stringWidth(value) + 10 * s;
+                g.setFont(HiUi.font((float) (11.5 * s), true));
+                String plus = "+" + STAT_SHORT[p.natureUp()] + " ";
+                g.setColor(UP);
+                g.drawString(plus, (float) cx, (float) (cy + 4.5 * s));
+                g.setColor(DOWN);
+                g.drawString("−" + STAT_SHORT[p.natureDown()], (float) (cx + g.getFontMetrics().stringWidth(plus)), (float) (cy + 4.5 * s));
             } else {
-                g.drawString(HiUi.ellipsis(g, value, vw - 24 * s), (float) textX, (float) (cy + 4.5 * s));
+                g.drawString(HiUi.ellipsis(g, value, vw - 8 * s), (float) vx, (float) (cy + 4.5 * s));
             }
+            // un trait fin entre les lignes, rien d'autre
+            g.setColor(HiUi.PANEL_BORDER);
+            g.fill(new Rectangle2D.Double(b.getX(), y + rowH - 1, b.getWidth(), 1));
             y += rowH;
         }
         // talent : sa description ; puis la barre d'expérience
@@ -395,7 +400,7 @@ public final class SummaryWindow implements UiWindow {
         g.setFont(HiUi.font((float) (11 * s), false));
         g.setColor(HiUi.MUTED);
         if (!desc.isBlank()) {
-            g.drawString(HiUi.ellipsis(g, "★ " + desc, b.getWidth()), (float) b.getX(), (float) (y + 8 * s));
+            g.drawString(HiUi.ellipsis(g, "★ " + desc, b.getWidth()), (float) b.getX(), (float) (y + 13 * s));
             y += 14 * s;
         }
         double by = Math.min(b.getMaxY() - 6 * s, y + 10 * s);
@@ -542,10 +547,8 @@ public final class SummaryWindow implements UiWindow {
             // bande de la couleur du type, à gauche
             Graphics2D q = (Graphics2D) g.create();
             q.clip(new RoundRectangle2D.Double(b.getX(), y, b.getWidth(), h, 8 * s, 8 * s));
-            q.setPaint(new GradientPaint((float) b.getX(), 0, mix(tc, HiUi.CELL, 0.55), (float) (b.getX() + b.getWidth() * 0.6), 0, HiUi.CELL));
-            q.fill(new Rectangle2D.Double(b.getX(), y, b.getWidth(), h));
             q.setColor(tc);
-            q.fill(new Rectangle2D.Double(b.getX(), y, 4 * s, h));
+            q.fill(new Rectangle2D.Double(b.getX(), y, 3 * s, h));
             q.dispose();
 
             double x = b.getX() + 14 * s, top = y + h / 2 - 9 * s;

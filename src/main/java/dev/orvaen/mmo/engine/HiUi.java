@@ -15,22 +15,25 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
- * Interface haute résolution façon PokeMMO : panneaux sombres, cellules d'étiquettes,
- * sélecteurs pervenche, texte lissé. Utilisée par les écrans dessinés en
- * {@link Scene#renderHiRes(Graphics2D, int, int)}.
+ * Interface haute résolution : style plat et sobre. Une seule surface sombre par fenêtre, des fonds
+ * seulement au survol et sur la sélection, une couleur d'accent (pervenche), texte lissé. Utilisée par
+ * les écrans dessinés en {@link Scene#renderHiRes(Graphics2D, int, int)}.
  */
 public final class HiUi {
 
-    public static final Color PANEL = new Color(0x262838);
-    public static final Color PANEL_BORDER = new Color(0x3B3E57);
-    public static final Color HEADER = new Color(0x1C1D2B);
-    public static final Color CELL = new Color(0x1C1D2A);
-    public static final Color SELECTOR = new Color(0x363950);
-    public static final Color SELECTOR_HOVER = new Color(0x464A68);
-    public static final Color SELECTOR_FOCUS = new Color(0x5B6090);
-    public static final Color SELECTOR_BORDER = new Color(0x4A4E6E);
-    public static final Color TEXT = new Color(0xE4E5EF);
-    public static final Color MUTED = new Color(0x9496AC);
+    /** Fond des fenêtres (et de leur barre de titre : pas de bandeau séparé). */
+    public static final Color PANEL = new Color(0x1D1E29);
+    /** Bordure fine et traits de séparation. */
+    public static final Color PANEL_BORDER = new Color(0x2E3042);
+    public static final Color HEADER = PANEL;
+    /** Zones légèrement éclairées (pistes, champs, cartes). */
+    public static final Color CELL = new Color(0x252736);
+    public static final Color SELECTOR = new Color(0x2A2C3D);
+    public static final Color SELECTOR_HOVER = new Color(0x313449);
+    public static final Color SELECTOR_FOCUS = new Color(0x464C85);
+    public static final Color SELECTOR_BORDER = new Color(0x3A3D54);
+    public static final Color TEXT = new Color(0xECEDF3);
+    public static final Color MUTED = new Color(0x8A8CA3);
     public static final Color ACCENT = new Color(0x8C93E6);
     public static final Color CLOSE = new Color(0xF0507A);
     public static final Color ERROR = new Color(0xFF6B6B);

@@ -533,6 +533,14 @@ public final class SelfTest {
         click(g, dex.anchor("cell:1"));
         eq(2, dex.selectedSpecies().id(), "clic sur une case");
         check(g.renderWindow(1280, 720).getRGB(640, 30) != 0, "rendu");
+        // Survol : la case sous la souris s'éclaire (les fenêtres voient la vraie position de la souris)
+        java.awt.Point hc = dex.anchor("cell:0");          // la case 1 est sélectionnée
+        g.input().move(5, 5);
+        g.simulateFrame();
+        int calm = g.renderWindow(1280, 720).getRGB(hc.x, hc.y - 20);
+        g.input().move(hc.x, hc.y);
+        g.simulateFrame();
+        check(g.renderWindow(1280, 720).getRGB(hc.x, hc.y - 20) != calm, "survol d'une case du Pokédex visible");
         // Pendant ce temps, le jeu continue : on peut marcher avec le Pokédex ouvert
         OverworldScene w = world(g);
         int x0 = w.playerX();
