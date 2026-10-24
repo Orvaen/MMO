@@ -6,9 +6,10 @@ cd "$(dirname "$0")"
 rm -rf build
 mkdir -p build/classes build/test-classes
 
-# Java sous Windows (Git Bash, Orvaen terminal) sépare le classpath par « ; », ailleurs par « : ».
+# Sous Windows (Git Bash, Orvaen terminal) : classpath Java séparé par « ; », et outils Unix
+# (find…) avant ceux de Windows, sinon find.exe répond « Fichier introuvable ».
 case "$(uname -s 2>/dev/null)" in
-  MINGW*|MSYS*|CYGWIN*) SEP=';' ;;
+  MINGW*|MSYS*|CYGWIN*) SEP=';'; PATH="/usr/bin:$PATH" ;;
   *) SEP=':' ;;
 esac
 
