@@ -205,6 +205,17 @@ public final class Game {
         return fadeDir != 0;
     }
 
+    private float scriptFade, scriptFadeTarget;
+
+    /** Fondu demandé par un script (fadescreen) : vers le noir, ou retour à l'image. */
+    public void fadeScreen(boolean toBlack) {
+        scriptFadeTarget = toBlack ? 1f : 0f;
+    }
+
+    public boolean fadeScreenBusy() {
+        return scriptFade != scriptFadeTarget;
+    }
+
     public void run(Supplier<Scene> first) {
         createWindow();
         frame.setVisible(true);
@@ -337,6 +348,8 @@ public final class Game {
         if (input.zoomSteps() != 0) adjustZoom(input.zoomSteps());
         if (input.fpsToggled()) showFps = !showFps;
         sizeScreen();
+        if (scriptFade < scriptFadeTarget) scriptFade = Math.min(scriptFadeTarget, scriptFade + 0.0625f);
+        else if (scriptFade > scriptFadeTarget) scriptFade = Math.max(scriptFadeTarget, scriptFade - 0.0625f);
         for (Scene sc : scenes) {
             if (sc.countsPlayTime()) {
                 save.playFrames++;
@@ -424,8 +437,9 @@ public final class Game {
             s.renderHiRes(g, cw, ch);
             g.dispose();
         }
-        if (fade > 0) {
-            out.setColor(new Color(0, 0, 0, Math.min(1f, fade)));
+        float shade = Math.max(fade, scriptFade);
+        if (shade > 0) {
+            out.setColor(new Color(0, 0, 0, Math.min(1f, shade)));
             out.fillRect(0, 0, cw, ch);
         }
         if (showFps) {

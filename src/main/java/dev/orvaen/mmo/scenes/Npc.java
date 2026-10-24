@@ -18,7 +18,7 @@ import java.util.function.BiPredicate;
  * (regarder autour de lui, errer dans sa zone, rester tourné vers une direction…).
  * Il marche à la vitesse GBA (16 frames par case) avec les mêmes pas que le joueur.
  */
-public final class Npc {
+public final class Npc implements dev.orvaen.mmo.script.Movement.Actor {
 
     private static final int T = MapRenderer.TILE;
     private static final Direction[] ALL = Direction.values();
@@ -26,14 +26,20 @@ public final class Npc {
     public final ObjectEvent event;
     private final ObjectGraphics.Sprite sprite;
     private final Random rng;
-    private final Direction[] directions;   // orientations possibles
-    private final boolean wanders;
+    private Direction[] directions;         // orientations possibles
+    private boolean wanders;
+    private int movementType;
     private final Map<Integer, BufferedImage> flipped = new HashMap<>();
 
     private int x, y;
     private Direction facing;
     private boolean moving;
-    private int progress;
+    private int progress;               // frames écoulées dans le pas
+    private int framesPerStep = T;      // 16 frames par case à pied
+    private int stepTiles = 1;          // 0 : sur place, 2 : saut de deux cases
+    private boolean hop, animate = true;
+    private boolean hidden;
+    private int emote = -1, emoteTimer;
     private boolean leftFoot;
     private int wait;
     private int rotation;
@@ -45,11 +51,80 @@ public final class Npc {
         this.rng = new Random(seed);
         this.x = event.x();
         this.y = event.y();
-        this.directions = directionsFor(event.movementType());
-        this.wanders = event.movementType() >= ObjectEvent.MOVE_WANDER
-                && event.movementType() <= ObjectEvent.MOVE_WANDER_RL && sprite != null && sprite.walks();
+        setMovementType(event.movementType());
         this.facing = initialFacing(event.movementType(), directions);
         this.wait = 30 + rng.nextInt(90);
+    }
+
+    /** Change le comportement (setobjectmovementtype d'un script). */
+    public void setMovementType(int type) {
+        this.movementType = type;
+        this.directions = directionsFor(type);
+        this.wanders = type >= ObjectEvent.MOVE_WANDER && type <= ObjectEvent.MOVE_WANDER_RL
+                && sprite != null && sprite.walks();
+        if (directions.length == 1) facing = directions[0];
+    }
+
+    public void setPosition(int nx, int ny) {
+        x = nx;
+        y = ny;
+        moving = false;
+    }
+
+    // ------------------------------------------------------------------ pilotage par script
+
+    @Override
+    public int facing() {
+        return facing.ordinal();
+    }
+
+    @Override
+    public void face(int dir) {
+        if (!moving) facing = Direction.fromIndex(dir);
+    }
+
+    @Override
+    public void step(int dir, int tiles, int frames, boolean hop, boolean animate) {
+        facing = Direction.fromIndex(dir);
+        moving = true;
+        progress = 0;
+        framesPerStep = Math.max(1, frames);
+        stepTiles = tiles;
+        this.hop = hop;
+        this.animate = animate;
+        leftFoot = !leftFoot;
+    }
+
+    @Override
+    public boolean busy() {
+        return moving;
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        hidden = !visible;
+    }
+
+    public boolean hidden() {
+        return hidden;
+    }
+
+    @Override
+    public void emote(int kind) {
+        emote = kind;
+        emoteTimer = 60;
+    }
+
+    /** Bulle affichée au-dessus de la tête (-1 : aucune). */
+    public int emote() {
+        return emoteTimer > 0 ? emote : -1;
+    }
+
+    /** Hauteur du saut en cours, en pixels du monde. */
+    public double hopHeight(double interpolation) {
+        if (!moving || !hop) return 0;
+        double p = Math.min(1, (progress + interpolation) / framesPerStep);
+        return Math.sin(Math.PI * p) * (stepTiles >= 2 ? 10 : 6);
     }
 
     private static Direction[] directionsFor(int type) {
@@ -83,13 +158,14 @@ public final class Npc {
 
     public int x() { return x; }
     public int y() { return y; }
-    public Direction facing() { return facing; }
+    public Direction direction() { return facing; }
     public boolean isMoving() { return moving; }
 
     /** Case occupée (les deux pendant un pas, comme sur GBA). */
     public boolean occupies(int tx, int ty) {
+        if (hidden) return false;
         if (tx == x && ty == y) return true;
-        return moving && tx == x + facing.dx && ty == y + facing.dy;
+        return moving && stepTiles > 0 && tx == x + facing.dx * stepTiles && ty == y + facing.dy * stepTiles;
     }
 
     /**
@@ -97,19 +173,20 @@ public final class Npc {
      * {@code frozen} : le joueur lui parle, il ne bouge plus.
      */
     public void update(BiPredicate<Integer, Integer> free, boolean frozen) {
+        if (emoteTimer > 0) emoteTimer--;
         if (moving) {
             progress++;
-            if (progress >= T) {
+            if (progress >= framesPerStep) {
                 moving = false;
-                x += facing.dx;
-                y += facing.dy;
+                x += facing.dx * stepTiles;
+                y += facing.dy * stepTiles;
             }
             return;
         }
         if (frozen || directions.length == 1 && !wanders) return;
         if (--wait > 0) return;
         wait = 32 * (1 + rng.nextInt(4)); // comme sur GBA : 32, 64, 96 ou 128 frames
-        int type = event.movementType();
+        int type = movementType;
         if (type == 0x17 || type == 0x18) { // rotation
             rotation = (rotation + (type == 0x18 ? 1 : 3)) % 4;
             facing = new Direction[]{Direction.DOWN, Direction.LEFT, Direction.UP, Direction.RIGHT}[rotation];
@@ -121,11 +198,7 @@ public final class Npc {
         int tx = x + d.dx, ty = y + d.dy;
         int rx = event.rangeX(), ry = event.rangeY();
         boolean inRange = (rx == 0 || Math.abs(tx - event.x()) <= rx) && (ry == 0 || Math.abs(ty - event.y()) <= ry);
-        if (inRange && free.test(tx, ty)) {
-            moving = true;
-            progress = 0;
-            leftFoot = !leftFoot;
-        }
+        if (inRange && free.test(tx, ty)) step(d.ordinal(), 1, T, false, true);
     }
 
     /** Se tourne vers le joueur (on lui parle). */
@@ -143,11 +216,13 @@ public final class Npc {
     }
 
     private double exactProgress(double interpolation) {
-        return moving ? Math.min(T, progress + interpolation) : 0;
+        if (!moving) return 0;
+        double total = T * stepTiles;
+        return Math.min(total, (progress + interpolation) * total / framesPerStep);
     }
 
     public boolean visible() {
-        return sprite != null;
+        return sprite != null && !hidden;
     }
 
     public int width() { return sprite.width(); }
@@ -162,7 +237,8 @@ public final class Npc {
             case UP -> 1;
             case LEFT, RIGHT -> 2;
         };
-        int index = moving && progress < T / 2 ? 3 + base * 2 + (leftFoot ? 0 : 1) : base;
+        boolean stepping = moving && animate && (progress * 2 / Math.max(1, framesPerStep / Math.max(1, stepTiles))) % 2 == 0;
+        int index = stepping ? 3 + base * 2 + (leftFoot ? 0 : 1) : base;
         if (facing != Direction.RIGHT) return f[index];
         return flipped.computeIfAbsent(index, i -> {
             BufferedImage src = f[i];

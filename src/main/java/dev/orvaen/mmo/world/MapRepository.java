@@ -97,12 +97,15 @@ public final class MapRepository {
         MapLayout layout = readLayout(rom.requirePointer(header, "le layout de " + group + "." + num));
         String name = readName(rom.u8(header + 0x14), group, num);
         int mapType = rom.u8(header + 0x17);
-        return new GameMap(group, num, name, mapType, layout,
+        GameMap map = new GameMap(group, num, name, mapType, layout,
                 readWarps(rom.pointer(header + 0x04)),
                 readConnections(rom.pointer(header + 0x0C)),
                 readObjects(rom.pointer(header + 0x04)),
                 readSigns(rom.pointer(header + 0x04)),
                 profile);
+        map.triggers = readTriggers(rom.pointer(header + 0x04));
+        map.scripts = rom.pointer(header + 0x08);
+        return map;
     }
 
     private MapLayout readLayout(int o) {
@@ -167,6 +170,21 @@ public final class MapRepository {
             out.add(new ObjectEvent(rom.u8(o), rom.u8(o + 1), rom.s16(o + 4), rom.s16(o + 6), rom.u8(o + 8),
                     rom.u8(o + 9), range & 0xF, range >> 4, rom.u16(o + 0x0C), rom.pointer(o + 0x10),
                     rom.u16(o + 0x14)));
+        }
+        return out;
+    }
+
+    /** Cases déclencheurs : compteur à +2, tableau à +0x0C. */
+    private List<CoordEvent> readTriggers(int events) {
+        List<CoordEvent> out = new ArrayList<>();
+        if (events < 0 || !rom.inRange(events, 0x14)) return out;
+        int count = rom.u8(events + 2);
+        int ptr = rom.pointer(events + 0x0C);
+        if (count == 0 || ptr < 0 || !rom.inRange(ptr, count * CoordEvent.BYTES)) return out;
+        for (int i = 0; i < count; i++) {
+            int o = ptr + i * CoordEvent.BYTES;
+            out.add(new CoordEvent(rom.u16(o), rom.u16(o + 2), rom.u8(o + 4), rom.u16(o + 6), rom.u16(o + 8),
+                    rom.pointer(o + 12)));
         }
         return out;
     }

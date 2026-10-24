@@ -22,6 +22,10 @@ public final class GameMap {
     public final List<ObjectEvent> objects;
     /** Panneaux et éléments à lire. */
     public final List<SignEvent> signs;
+    /** Cases déclencheurs de scripts. */
+    public List<CoordEvent> triggers = List.of();
+    /** Scripts de la carte (à l'arrivée, à chaque frame…) : pointeur ROM, -1 si aucun. */
+    public int scripts = -1;
     private final GameProfile profile;
 
     public GameMap(int group, int num, String name, int mapType, MapLayout layout,

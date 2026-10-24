@@ -40,6 +40,7 @@ public final class SyntheticRom {
         buildPlayerGraphics();
         buildDoorAnims();
         buildTileAnims();
+        buildResetScript();
         return rom;
     }
 
@@ -268,6 +269,16 @@ public final class SyntheticRom {
         return ts;
     }
 
+    /** Script « début de partie » : 40 setflag (dont celui du PNJ d'histoire), puis end. */
+    private void buildResetScript() {
+        int o = alloc(40 * 3 + 4);
+        for (int i = 0; i < 40; i++) {
+            rom[o + i * 3] = 0x29;
+            w16(o + i * 3 + 1, i == 7 ? STORY_FLAG : 0x200 + i);
+        }
+        rom[o + 40 * 3] = 0x02;
+    }
+
     public static final int FLOWER_METATILE = 9;
 
     /** Animation des fleurs (Rouge Feu : 4 tuiles en 508, 5 frames) : frame n de couleur 1 + n % 2. */
@@ -356,11 +367,13 @@ public final class SyntheticRom {
         // Panneau en (3,0), lisible de face
         int signText = alloc(32);
         text(signText, "BOURG TEST");
-        int signScript = alloc(8);
+        int signScript = alloc(12);
         rom[signScript] = 0x0F;
         rom[signScript + 1] = 0;
         ptr(signScript + 2, signText);
-        rom[signScript + 6] = 0x02;
+        rom[signScript + 6] = 0x09;               // callstd MSGBOX_SIGN
+        rom[signScript + 7] = 3;
+        rom[signScript + 8] = 0x02;
         int signs = alloc(12);
         w16(signs, 3);
         w16(signs + 2, 0);
@@ -368,6 +381,28 @@ public final class SyntheticRom {
         ptr(signs + 8, signScript);
         rom[eventsA + 3] = 1;
         ptr(eventsA + 0x10, signs);
+        // Case déclencheur en (4,3) tant que TRIGGER_VAR = 0 : le joueur recule d'un pas à gauche, un message
+        int moves = alloc(4);
+        rom[moves] = 0x12;                        // walk_left
+        rom[moves + 1] = (byte) 0xFE;
+        int trapText = alloc(16);
+        text(trapText, "ATTENTION !");
+        int trap = alloc(32);
+        int t = trap;
+        rom[t++] = 0x4F; w16(t, 0xFF); t += 2; ptr(t, moves); t += 4;   // applymovement joueur
+        rom[t++] = 0x51; w16(t, 0); t += 2;                             // waitmovement 0
+        rom[t++] = 0x16; w16(t, TRIGGER_VAR); w16(t + 2, 1); t += 4;    // setvar
+        rom[t++] = 0x0F; rom[t++] = 0; ptr(t, trapText); t += 4;        // loadword 0
+        rom[t++] = 0x09; rom[t++] = 6;                                  // callstd MSGBOX_AUTOCLOSE
+        rom[t] = 0x02;
+        int coords = alloc(16);
+        w16(coords, 4);
+        w16(coords + 2, 3);
+        w16(coords + 6, TRIGGER_VAR);
+        w16(coords + 8, 0);
+        ptr(coords + 12, trap);
+        rom[eventsA + 2] = 1;
+        ptr(eventsA + 0x0C, coords);
         int warpsB = alloc(8);
         warp(warpsB, 2, 1, 0, 0, 0);
         int eventsB = events(1, warpsB);
@@ -470,6 +505,8 @@ public final class SyntheticRom {
     }
 
     public static final int NPC_GRAPHICS = 1;
+    public static final int TRIGGER_VAR = 0x4050;
+    public static final int STORY_FLAG = 0x0123;
     public static final int NPC_COLOR = 0x7FE0; // cyan
 
     private void object(int o, int localId, int gfx, int x, int y, int movement, int script, int flag) {

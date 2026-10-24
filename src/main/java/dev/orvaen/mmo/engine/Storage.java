@@ -117,6 +117,13 @@ public final class Storage {
         public int money = 3000;
         public long playFrames;
         public String started = "";
+        /** Progression de l'histoire : drapeaux et variables des scripts de la ROM. */
+        public final java.util.BitSet flags = new java.util.BitSet();
+        public final java.util.Map<Integer, Integer> vars = new java.util.TreeMap<>();
+        /** Drapeaux de début de partie posés (script « tout réinitialiser » de la ROM). */
+        public boolean eventsReady;
+        /** Équipe : espèce et niveau (le système de combat complet viendra ensuite). */
+        public final java.util.List<int[]> party = new java.util.ArrayList<>();
         public final Set<Integer> seen = new TreeSet<>();
         public final Set<Integer> caught = new TreeSet<>();
 
@@ -144,6 +151,30 @@ public final class Storage {
                 s.playFrames = 0;
             }
             s.started = p.getProperty("player.started", "").trim();
+            for (String f : p.getProperty("event.flags", "").split(",")) {
+                try {
+                    if (!f.isBlank()) s.flags.set(Integer.parseInt(f.trim(), 16));
+                } catch (NumberFormatException ignored) {
+                    // entrée corrompue
+                }
+            }
+            for (String kv : p.getProperty("event.vars", "").split(",")) {
+                String[] parts = kv.split(":");
+                try {
+                    if (parts.length == 2) s.vars.put(Integer.parseInt(parts[0].trim(), 16), Integer.parseInt(parts[1].trim()));
+                } catch (NumberFormatException ignored) {
+                    // entrée corrompue
+                }
+            }
+            s.eventsReady = Boolean.parseBoolean(p.getProperty("event.ready", "false"));
+            for (String m : p.getProperty("party", "").split(",")) {
+                String[] parts = m.split(":");
+                try {
+                    if (parts.length == 2) s.party.add(new int[]{Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim())});
+                } catch (NumberFormatException ignored) {
+                    // entrée corrompue
+                }
+            }
             parseSet(p.getProperty("dex.seen", ""), s.seen);
             parseSet(p.getProperty("dex.caught", ""), s.caught);
             return s;
@@ -173,6 +204,26 @@ public final class Storage {
             p.setProperty("player.money", String.valueOf(money));
             p.setProperty("player.playtime", String.valueOf(playFrames / 60));
             p.setProperty("player.started", started);
+            StringBuilder f = new StringBuilder();
+            for (int i = flags.nextSetBit(0); i >= 0; i = flags.nextSetBit(i + 1)) {
+                if (!f.isEmpty()) f.append(',');
+                f.append(Integer.toHexString(i));
+            }
+            p.setProperty("event.flags", f.toString());
+            StringBuilder v = new StringBuilder();
+            for (var e : vars.entrySet()) {
+                if (e.getValue() == 0) continue;
+                if (!v.isEmpty()) v.append(',');
+                v.append(Integer.toHexString(e.getKey())).append(':').append(e.getValue());
+            }
+            p.setProperty("event.vars", v.toString());
+            p.setProperty("event.ready", String.valueOf(eventsReady));
+            StringBuilder pt = new StringBuilder();
+            for (int[] m : party) {
+                if (!pt.isEmpty()) pt.append(',');
+                pt.append(m[0]).append(':').append(m[1]);
+            }
+            p.setProperty("party", pt.toString());
             p.setProperty("dex.seen", join(seen));
             p.setProperty("dex.caught", join(caught));
             write(file, p, "Sauvegarde");

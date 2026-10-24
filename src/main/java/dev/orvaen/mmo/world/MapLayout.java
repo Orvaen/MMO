@@ -11,6 +11,7 @@ public final class MapLayout {
     public final int width;
     public final int height;
     public final int[] blocks;
+    private final int[] original;
     public final int borderWidth;
     public final int borderHeight;
     public final int[] border;
@@ -22,11 +23,19 @@ public final class MapLayout {
         this.width = width;
         this.height = height;
         this.blocks = blocks;
+        this.original = blocks.clone();
         this.borderWidth = borderWidth;
         this.borderHeight = borderHeight;
         this.border = border;
         this.primary = primary;
         this.secondary = secondary;
+    }
+
+    /** Annule les changements faits par les scripts (setmetatile) : la carte est rechargée à chaque visite. */
+    public boolean reset() {
+        if (java.util.Arrays.equals(blocks, original)) return false;
+        System.arraycopy(original, 0, blocks, 0, blocks.length);
+        return true;
     }
 
     public boolean inBounds(int x, int y) {

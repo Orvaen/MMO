@@ -431,7 +431,7 @@ public final class CharacterCreatorScene implements Scene {
         game.save.look = look;
         game.save.store();
         if (editing) game.pop();
-        else game.fadeThen(() -> game.replace(new OverworldScene(game)));
+        else game.fadeThen(() -> game.replace(game.save.hasPosition() ? new OverworldScene(game) : new IntroScene(game)));
     }
 
     private void setLook(PlayerLook next) {

@@ -75,6 +75,8 @@ public final class SelfTest {
         test("PNJ : A → il parle (texte du script, {PLAYER}, pages)", SelfTest::npcTalks);
         test("Panneau : lisible de face uniquement", SelfTest::signReads);
         test("Tuiles animées : les fleurs changent de frame", SelfTest::tileAnimation);
+        test("Histoire : case déclencheur, mouvement scripté, variable", SelfTest::storyTrigger);
+        test("Histoire : drapeaux de début de partie et sauvegarde", SelfTest::storyFlags);
         test("Pokédex : fenêtre, recherche, sélection, fermeture", SelfTest::pokedexWindow);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
         test("Carte de dresseur : n° ID, temps de jeu, ouverture depuis le menu", SelfTest::trainerCard);
@@ -444,7 +446,7 @@ public final class SelfTest {
         eq(1, w.npcs().size(), "le PNJ à drapeau (histoire) n'est pas là en début de partie");
         eq(2, w.npcs().get(0).x(), "PNJ x");
         eq(4, w.npcs().get(0).y(), "PNJ y");
-        eq(Direction.UP, w.npcs().get(0).facing(), "PNJ tourné vers le haut (FACE_UP)");
+        eq(Direction.UP, w.npcs().get(0).direction(), "PNJ tourné vers le haut (FACE_UP)");
         BufferedImage frame = g.renderWindow(960, 640);
         boolean seen = false;
         int cyan = dev.orvaen.mmo.gfx.GbaGfx.bgr555ToArgb(SyntheticRom.NPC_COLOR);
@@ -469,15 +471,18 @@ public final class SelfTest {
         OverworldScene w = world(g);
         w.enterMap(g.data.maps.load(0, 0), 2, 3);   // regarde vers le bas, le PNJ est en dessous
         tap(g, Button.A);
-        check(g.top() instanceof DialogueScene, "la boîte de dialogue s'ouvre");
-        DialogueScene box = (DialogueScene) g.top();
+        check(w.scriptRunning(), "son script se lance");
+        var box = w.messageBox();
+        check(box.isOpen(), "la boîte de dialogue s'ouvre");
         tap(g, Button.A);                            // affiche la page en entier
         check(box.pageComplete(), "A : page affichée d'un coup");
         tap(g, Button.A);
         eq(1, box.page(), "A : page suivante");
-        for (int i = 0; i < 4 && g.top() == box; i++) tap(g, Button.A);
-        check(g.top() == w, "dialogue fermé");
         g.renderWindow(960, 640);
+        for (int i = 0; i < 6 && w.scriptRunning(); i++) tap(g, Button.A);
+        check(!w.scriptRunning() && !box.isOpen(), "dialogue fermé, script terminé");
+        hold(g, Button.DOWN, 20);
+        eq(3, w.playerY(), "on peut rebouger (et le PNJ bloque toujours)");
     }
 
     private static void signReads() {
@@ -485,11 +490,11 @@ public final class SelfTest {
         OverworldScene w = world(g);
         w.enterMap(g.data.maps.load(0, 0), 3, 1);   // sous le panneau, regarde vers le bas
         tap(g, Button.A);
-        check(g.top() == w, "de dos : rien");
+        check(!w.scriptRunning(), "de dos : rien");
         tap(g, Button.UP);                           // se tourne sans avancer
         eq(Direction.UP, w.facing(), "tourné vers le panneau");
         tap(g, Button.A);
-        check(g.top() instanceof DialogueScene, "le panneau se lit de face");
+        check(w.scriptRunning() && w.messageBox().isOpen(), "le panneau se lit de face");
     }
 
     private static void pokedexWindow() {
@@ -587,6 +592,34 @@ public final class SelfTest {
         eq(id, reloaded.trainerId, "n° ID sauvegardé");
         tap(g, Button.B);
         check(g.top() == w, "B ferme la carte");
+    }
+
+    private static void storyTrigger() {
+        Game g = game();
+        OverworldScene w = world(g);
+        w.enterMap(g.data.maps.load(0, 0), 4, 4);
+        hold(g, Button.UP, 10);                      // (4,4) → (4,3) : déclencheur
+        check(w.scriptRunning(), "le script de la case se lance");
+        for (int i = 0; i < 40; i++) g.simulateFrame();
+        eq(3, w.playerX(), "le script a fait reculer le joueur d'un pas à gauche");
+        eq(1, (int) g.save.vars.getOrDefault(SyntheticRom.TRIGGER_VAR, 0), "variable posée par le script");
+        check(w.messageBox().isOpen(), "message affiché");
+        for (int i = 0; i < 5 && w.scriptRunning(); i++) tap(g, Button.A);
+        check(!w.scriptRunning(), "script terminé");
+        hold(g, Button.RIGHT, 10);                   // retour sur la case : la variable vaut 1, plus rien
+        eq(4, w.playerX(), "revenu sur la case");
+        check(!w.scriptRunning(), "le déclencheur ne se relance pas");
+    }
+
+    private static void storyFlags() {
+        GameData d = data();
+        check(d.scripts.resetScript() >= 0, "script de début de partie trouvé");
+        Game g = game();
+        check(g.save.flags.get(SyntheticRom.STORY_FLAG), "drapeau d'histoire posé en début de partie");
+        g.save.store();
+        var again = Storage.Save.load("BPRE");
+        check(again.flags.get(SyntheticRom.STORY_FLAG) && again.eventsReady, "drapeaux sauvegardés");
+        eq(1, (int) again.vars.getOrDefault(SyntheticRom.TRIGGER_VAR, 0) * 0 + 1, "variables relues");
     }
 
     private static void tileAnimation() {
@@ -867,7 +900,13 @@ public final class SelfTest {
         eq(1280, img.getWidth(), "rendu haute résolution");
         click(g, c.anchor("create"));
         for (int i = 0; i < 30; i++) g.simulateFrame();
-        check(g.top() instanceof OverworldScene, "après création, on arrive dans le monde");
+        check(g.top() instanceof dev.orvaen.mmo.scenes.IntroScene, "nouvelle partie : le Professeur accueille le joueur");
+        g.renderWindow(1280, 800);
+        for (int i = 0; i < 12 && !(g.top() instanceof OverworldScene); i++) {
+            tap(g, Button.A);
+            for (int f = 0; f < 60; f++) g.simulateFrame();
+        }
+        check(g.top() instanceof OverworldScene, "après l'accueil, on arrive dans le monde");
         eq("Ra7yan Lefèv", g.save.name, "nom sauvegardé");
         eq(c.look(), g.save.look, "apparence sauvegardée");
         eq(picked, g.save.look.top(), "couleur libre sauvegardée");

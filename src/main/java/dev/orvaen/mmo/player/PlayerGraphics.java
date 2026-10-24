@@ -146,6 +146,19 @@ public final class PlayerGraphics {
 
     // ------------------------------------------------------------------ portraits et dos
 
+    /** Portrait de dresseur n° {@code id} (Professeur, rival…), ou {@code null}. */
+    public static java.awt.image.BufferedImage trainerPic(Rom rom, int id) {
+        try {
+            int sheets = findSheetTable(rom);
+            int palettes = findPaletteTable(rom, FRONT_PIC_IDS[GIRL] + 1, true);
+            byte[] tiles = Lz77.decompress(rom, rom.requirePointer(sheets + id * 8, "le portrait"));
+            int[] pal = GbaGfx.palettesFromBytes(Lz77.decompress(rom, rom.requirePointer(palettes + id * 8, "la palette")));
+            return GbaGfx.sprite(tiles, 8, 8, pal);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     private void readTrainerPics(Rom rom) {
         int sheets = findSheetTable(rom);
         int palettes = findPaletteTable(rom, FRONT_PIC_IDS[GIRL] + 1, true);

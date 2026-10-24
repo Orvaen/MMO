@@ -2,6 +2,8 @@ package dev.orvaen.mmo.data;
 
 import dev.orvaen.mmo.player.PlayerGraphics;
 import dev.orvaen.mmo.rom.Rom;
+import dev.orvaen.mmo.script.ScriptTables;
+import dev.orvaen.mmo.script.Trainers;
 import dev.orvaen.mmo.world.DoorAnims;
 import dev.orvaen.mmo.world.MapRenderer;
 import dev.orvaen.mmo.world.ObjectGraphics;
@@ -19,6 +21,8 @@ public final class GameData {
     public final DoorAnims doors;
     public final ObjectGraphics objects;
     public final TileAnims tileAnims;
+    public final ScriptTables scripts;
+    private Trainers trainers;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -30,7 +34,14 @@ public final class GameData {
         this.doors = new DoorAnims(rom);
         this.objects = new ObjectGraphics(rom);
         this.tileAnims = new TileAnims(rom);
+        this.scripts = new ScriptTables(rom);
         this.player = new PlayerGraphics(rom);
+    }
+
+    /** Dresseurs de la ROM (cherchés au premier combat). */
+    public Trainers trainers() {
+        if (trainers == null) trainers = new Trainers(rom, species.count());
+        return trainers;
     }
 
     public String summary() {

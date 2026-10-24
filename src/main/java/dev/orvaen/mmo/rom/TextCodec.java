@@ -60,6 +60,15 @@ public final class TextCodec {
      * {@code {PLAYER}} est remplacé par {@code player}, {@code {RIVAL}} par {@code rival}.
      */
     public static java.util.List<String> dialogue(Rom rom, int offset, int maxLength, String player, String rival) {
+        return dialogue(rom, offset, maxLength, code -> code == 0x01 ? player : code == 0x06 ? rival : "");
+    }
+
+    /**
+     * Idem, avec les « emplacements » du jeu remplacés par {@code placeholder} :
+     * 0x01 joueur, 0x02 à 0x04 textes préparés par le script (STR_VAR_1 à 3), 0x06 rival…
+     */
+    public static java.util.List<String> dialogue(Rom rom, int offset, int maxLength,
+                                                  java.util.function.IntFunction<String> placeholder) {
         java.util.List<String> pages = new java.util.ArrayList<>();
         StringBuilder sb = new StringBuilder();
         int end = Math.min(rom.size(), offset + maxLength);
@@ -74,8 +83,8 @@ public final class TextCodec {
             } else if (c == PLACEHOLDER) {
                 int arg = i + 1 < end ? rom.u8(i + 1) : 0;
                 i++;
-                if (arg == 0x01) sb.append(player);
-                else if (arg == 0x06) sb.append(rival);
+                String sub = placeholder.apply(arg);
+                if (sub != null) sb.append(sub);
             } else if (c == CONTROL) {
                 i += controlArgs(i + 1 < end ? rom.u8(i + 1) : 0);
             } else if (TABLE[c] != null) {

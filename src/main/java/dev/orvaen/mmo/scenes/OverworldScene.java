@@ -8,7 +8,10 @@ import dev.orvaen.mmo.engine.Scene;
 import dev.orvaen.mmo.engine.Storage;
 import dev.orvaen.mmo.engine.Ui;
 import dev.orvaen.mmo.rom.RomException;
+import dev.orvaen.mmo.script.Movement;
+import dev.orvaen.mmo.script.ScriptVM;
 import dev.orvaen.mmo.world.Connection;
+import dev.orvaen.mmo.world.CoordEvent;
 import dev.orvaen.mmo.world.DoorAnims;
 import dev.orvaen.mmo.world.GameMap;
 import dev.orvaen.mmo.world.MapLayout;
@@ -81,6 +84,19 @@ public final class OverworldScene implements Scene {
     private final Map<String, int[]> animCells = new HashMap<>();
     private Npc talking;
 
+    // Histoire : script en cours, boîte de texte, état piloté par les scripts
+    private ScriptVM vm;
+    private final MessageBox box = new MessageBox();
+    private final Map<Integer, int[]> objectPositions = new HashMap<>();   // setobjectxyperm (carte courante)
+    private final Map<Integer, Integer> objectMovements = new HashMap<>(); // setobjectmovementtype
+    private boolean scriptedStep, hopStep, animateStep = true;
+    private int playerInPlace;
+    private int playerEmote = -1, playerEmoteTimer;
+    private int monPic = -1;
+    private boolean battling;
+    private Npc speaker;
+    private boolean warpedIn;
+
     // États divers
     private Direction autoStep;         // sortie automatique d'une porte
     private GameMap returnMap;          // pour les warps « dynamiques »
@@ -96,7 +112,18 @@ public final class OverworldScene implements Scene {
         var save = game.save;
         var maps = game.data.maps;
         var profile = game.data.rom.profile();
-        if (save.hasPosition() && maps.exists(save.group, save.num)) {
+        if (!save.eventsReady) {
+            // Nouvelle partie : la ROM cache les personnages d'histoire pas encore apparus
+            int reset = game.data.scripts.resetScript();
+            if (reset >= 0) new ScriptVM(game.data.rom, new Host(), save, game.data.scripts, reset).runInstant(2000);
+            save.eventsReady = true;
+        }
+        boolean fireRed = profile == dev.orvaen.mmo.rom.GameProfile.FIRERED_LEAFGREEN;
+        if (!save.hasPosition() && fireRed && maps.exists(4, 1) && game.data.scripts.resetScript() >= 0) {
+            // Rouge Feu / Vert Feuille : on commence dans sa chambre, comme dans le jeu
+            enterMap(maps.load(4, 1), 6, 6);
+            warpedIn = true;
+        } else if (save.hasPosition() && maps.exists(save.group, save.num)) {
             enterMap(maps.load(save.group, save.num), save.x, save.y);
             facing = Direction.fromIndex(save.facing);
         } else {
@@ -116,6 +143,7 @@ public final class OverworldScene implements Scene {
     @Override
     public void onEnter() {
         refreshAvatar();
+        battling = false;
     }
 
     // ------------------------------------------------------------------ logique
@@ -137,7 +165,28 @@ public final class OverworldScene implements Scene {
         if (popupTimer > 0) popupTimer--;
         if (messageTimer > 0) messageTimer--;
         animateTiles();
-        for (Npc n : npcs) n.update((x, y) -> npcCanEnter(n, x, y), n == talking);
+        boolean scripting = vm != null;
+        for (Npc n : npcs) n.update((x, y) -> npcCanEnter(n, x, y), scripting || n == talking);
+        if (playerInPlace > 0) playerInPlace--;
+        if (playerEmoteTimer > 0) playerEmoteTimer--;
+        if (doorPhase == DoorPhase.NONE && door != null) {
+            updateDoor();                       // porte ouverte / fermée par un script
+            if (doorDone() && doorStage < 0) door = null;
+        }
+        box.update(in);
+
+        if (vm != null) {
+            if (moving) advanceMove(in);
+            vm.update();
+            if (!vm.running() && !moving) {
+                vm = null;
+                speaker = null;
+                monPic = -1;
+                box.close();
+                game.save.store();
+            }
+            return;
+        }
 
         if (doorPhase != DoorPhase.NONE) {
             updateDoor();
@@ -148,6 +197,8 @@ public final class OverworldScene implements Scene {
             advanceMove(in);
             return;
         }
+        if (game.isFading()) return;
+        if (runFrameScript()) return;
         if (in.pressed(Button.START)) {
             game.push(new StartMenuScene(game, this));
             return;
@@ -351,6 +402,12 @@ public final class OverworldScene implements Scene {
         int tiles = distance / T;
         px += facing.dx * tiles;
         py += facing.dy * tiles;
+        if (scriptedStep) {
+            scriptedStep = false;
+            hopStep = false;
+            animateStep = true;
+            return;
+        }
         if (doorPhase == DoorPhase.WALK_IN) {
             // dans l'encadrement : le joueur disparaît et la porte se referme derrière lui
             hidden = true;
@@ -381,6 +438,13 @@ public final class OverworldScene implements Scene {
         if (w.isPresent() && !isArrowWarp(map.behaviorAt(px, py))) {
             doWarp(w.get());
             return;
+        }
+        for (CoordEvent t : map.triggers) {
+            if (t.x() != px || t.y() != py || t.script() < 0) continue;
+            if (t.var() == 0 || varValue(t.var()) == t.value()) {
+                startScript(t.script(), -1);
+                return;
+            }
         }
         if (map.isLandEncounterAt(px, py) && stepsSinceBattle > 3) {
             Optional<WildEncounters.Table> table = game.data.wild.land(map.group, map.num);
@@ -435,6 +499,7 @@ public final class OverworldScene implements Scene {
                     ay = s[1];
                 }
                 enterMap(target, ax, ay);
+                warpedIn = true;
                 if (exitThroughDoor(target, ax, ay)) {
                     // la sortie animée prend le relais
                 } else if (target.behaviorAt(ax, ay) == BEHAVIOR_DOOR
@@ -456,12 +521,303 @@ public final class OverworldScene implements Scene {
         npcs.clear();
         talking = null;
         for (ObjectEvent e : map.objects) {
-            if (!e.alwaysPresent() || e.graphicsId() >= FIRST_VAR_GRAPHICS) continue;
-            ObjectGraphics.Sprite sprite = game.data.objects.get(e.graphicsId());
-            if (sprite == null) continue;
-            npcs.add(new Npc(e, sprite, (long) map.key().hashCode() * 31 + e.localId()));
+            // Les personnages à drapeau n'apparaissent que si l'histoire ne les cache pas
+            if (e.flag() != 0 && game.save.flags.get(e.flag())) continue;
+            spawn(e);
         }
     }
+
+    private Npc spawn(ObjectEvent e) {
+        if (e.graphicsId() >= FIRST_VAR_GRAPHICS) return null;
+        ObjectGraphics.Sprite sprite = game.data.objects.get(e.graphicsId());
+        if (sprite == null) return null;
+        Npc n = new Npc(e, sprite, (long) map.key().hashCode() * 31 + e.localId());
+        int[] pos = objectPositions.get(e.localId());
+        if (pos != null) n.setPosition(pos[0], pos[1]);
+        Integer type = objectMovements.get(e.localId());
+        if (type != null) n.setMovementType(type);
+        npcs.add(n);
+        return n;
+    }
+
+    private Npc npcById(int localId) {
+        for (Npc n : npcs) if (n.event.localId() == localId) return n;
+        return null;
+    }
+
+    // ------------------------------------------------------------------ scripts de l'histoire
+
+    private static final int TEMP_FLAGS_END = 0x20, TEMP_VARS = 0x4000, TEMP_VARS_END = 0x4010;
+    private static final int MAP_ON_LOAD = 1, MAP_ON_FRAME = 2, MAP_ON_TRANSITION = 3, MAP_ON_WARP_INTO = 4,
+            MAP_ON_RESUME = 5;
+
+    /** Valeur d'une variable de script (ou la valeur elle-même si ce n'est pas une variable). */
+    private int varValue(int id) {
+        if (id >= 0x4000 && id < 0x8000) return game.save.vars.getOrDefault(id, 0);
+        return id;
+    }
+
+    /** Lance un script (bloquant : le joueur ne bouge plus jusqu'à la fin). */
+    public void startScript(int script, int lastTalked) {
+        if (script < 0) return;
+        vm = new ScriptVM(game.data.rom, new Host(), game.save, game.data.scripts, script);
+        vm.setSpecial(ScriptVM.VAR_FACING, facing.ordinal() + 1);
+        if (lastTalked >= 0) vm.setSpecial(ScriptVM.VAR_LAST_TALKED, lastTalked);
+        vm.update();
+        if (!vm.running()) {
+            vm = null;
+            speaker = null;
+            box.close();
+        }
+    }
+
+    public boolean scriptRunning() {
+        return vm != null;
+    }
+
+    public MessageBox messageBox() {
+        return box;
+    }
+
+    /** Arrivée sur une carte : remise à zéro du temporaire, scripts d'arrivée, personnages. */
+    private void mapLoaded() {
+        game.save.flags.clear(0, TEMP_FLAGS_END);
+        for (int v = TEMP_VARS; v < TEMP_VARS_END; v++) game.save.vars.remove(v);
+        objectPositions.clear();
+        objectMovements.clear();
+        if (map.layout.reset()) renders.remove(map.key());
+        runMapScript(MAP_ON_LOAD);
+        runMapScript(MAP_ON_TRANSITION);
+        loadNpcs();
+        runMapScript(MAP_ON_RESUME);
+        animCells.clear();
+    }
+
+    /** Scripts « simples » de la carte (exécutés tout de suite, sans attendre). */
+    private void runMapScript(int type) {
+        int ptr = mapScript(type);
+        if (ptr >= 0) new ScriptVM(game.data.rom, new Host(), game.save, game.data.scripts, ptr).runInstant(500);
+    }
+
+    private int mapScript(int type) {
+        var rom = game.data.rom;
+        int o = map.scripts;
+        if (o < 0) return -1;
+        for (int i = 0; i < 16 && rom.inRange(o, 5); i++, o += 5) {
+            int t = rom.u8(o);
+            if (t == 0) break;
+            if (t == type) return rom.pointer(o + 1);
+        }
+        return -1;
+    }
+
+    /** Tables « variable = valeur → script » (à chaque frame, à l'arrivée par un warp). */
+    private int tableScript(int type) {
+        var rom = game.data.rom;
+        int table = mapScript(type);
+        if (table < 0) return -1;
+        for (int e = table; rom.inRange(e, 8); e += 8) {
+            int var = rom.u16(e);
+            if (var == 0) break;
+            if (varValue(var) == varValue(rom.u16(e + 2))) return rom.pointer(e + 4);
+        }
+        return -1;
+    }
+
+    /** Scènes qui se lancent seules (le Professeur qui t'interpelle…) : table ON_FRAME. */
+    private boolean runFrameScript() {
+        if (warpedIn) {
+            warpedIn = false;
+            int s = tableScript(MAP_ON_WARP_INTO);
+            if (s >= 0) new ScriptVM(game.data.rom, new Host(), game.save, game.data.scripts, s).runInstant(200);
+        }
+        int s = tableScript(MAP_ON_FRAME);
+        if (s < 0) return false;
+        startScript(s, -1);
+        return true;
+    }
+
+    /** Le joueur vu par les scripts (applymovement LOCALID_PLAYER…). */
+    private final Movement.Actor playerActor = new Movement.Actor() {
+        @Override public int x() { return px; }
+        @Override public int y() { return py; }
+        @Override public int facing() { return facing.ordinal(); }
+        @Override public void face(int dir) { if (!moving) facing = Direction.fromIndex(dir); }
+
+        @Override
+        public void step(int dir, int tiles, int frames, boolean hop, boolean animate) {
+            facing = Direction.fromIndex(dir);
+            if (tiles == 0) {
+                playerInPlace = Math.max(1, frames);
+                stepLeftFoot = !stepLeftFoot;
+                return;
+            }
+            moving = true;
+            progress = 0;
+            distance = T * tiles;
+            speed = distance / (double) Math.max(1, frames);
+            running = false;
+            stepLeftFoot = !stepLeftFoot;
+            scriptedStep = true;
+            hopStep = hop;
+            animateStep = animate;
+        }
+
+        @Override public boolean busy() { return moving || playerInPlace > 0; }
+        @Override public void setVisible(boolean visible) { hidden = !visible; }
+
+        @Override
+        public void emote(int kind) {
+            playerEmote = kind;
+            playerEmoteTimer = 60;
+        }
+    };
+
+    /** Ce que les scripts peuvent faire dans le monde. */
+    private final class Host implements ScriptVM.Host {
+        @Override
+        public void message(int textPtr) {
+            if (textPtr < 0) return;
+            String player = game.save.name == null || game.save.name.isBlank() ? "Dresseur" : game.save.name;
+            List<String> pages = dev.orvaen.mmo.rom.TextCodec.dialogue(game.data.rom, textPtr, 1024, code -> switch (code) {
+                case 0x01 -> player;
+                case 0x02, 0x03, 0x04 -> vm == null ? "" : vm.buffer(code - 2);
+                case 0x06 -> "RIVAL";
+                default -> "";
+            });
+            Npc who = speaker;
+            box.show(pages, who == null ? null : () -> new DialogueScene.Speaker(screenBounds(who), py < who.y()));
+        }
+
+        @Override public boolean messagePrinted() { return box.printed(); }
+        @Override public boolean takeButton() { return box.takeButton(); }
+        @Override public void closeMessage() { box.close(); }
+        @Override public void askYesNo() { box.askYesNo(); }
+        @Override public int yesNoResult() { return box.takeResult(); }
+
+        @Override
+        public Movement.Actor actor(int localId) {
+            if (localId == 0xFF) return playerActor;
+            return npcById(localId);
+        }
+
+        @Override
+        public void faceplayer(int localId) {
+            Npc n = npcById(localId);
+            if (n != null) n.face(opposite(facing).ordinal());
+        }
+
+        @Override
+        public void removeObject(int localId) {
+            Npc n = npcById(localId);
+            for (ObjectEvent e : map.objects) {
+                if (e.localId() == localId && e.flag() != 0) game.save.flags.set(e.flag());
+            }
+            if (n != null) npcs.remove(n);
+        }
+
+        @Override
+        public void addObject(int localId) {
+            if (npcById(localId) != null) return;
+            for (ObjectEvent e : map.objects) if (e.localId() == localId) spawn(e);
+        }
+
+        @Override
+        public void setObjectXY(int localId, int x, int y, boolean permanent) {
+            if (localId == 0xFF) {
+                px = x;
+                py = y;
+                return;
+            }
+            if (permanent) objectPositions.put(localId, new int[]{x, y});
+            Npc n = npcById(localId);
+            if (n != null && !permanent) n.setPosition(x, y);
+        }
+
+        @Override
+        public void setObjectMovementType(int localId, int type) {
+            objectMovements.put(localId, type);
+            Npc n = npcById(localId);
+            if (n != null) n.setMovementType(type);
+        }
+
+        @Override
+        public void showObject(int localId, boolean visible) {
+            Npc n = npcById(localId);
+            if (n != null) n.setVisible(visible);
+        }
+
+        @Override
+        public void warp(int group, int num, int warpId, int x, int y) {
+            if (!game.data.maps.exists(group, num)) return;
+            game.fadeThen(() -> {
+                GameMap target = game.data.maps.load(group, num);
+                int ax = x, ay = y;
+                if ((ax < 0 || ay < 0) && warpId < target.warps.size()) {
+                    ax = target.warps.get(warpId).x();
+                    ay = target.warps.get(warpId).y();
+                }
+                if (ax < 0 || ay < 0) {
+                    int[] sp = defaultSpawn(target);
+                    ax = sp[0];
+                    ay = sp[1];
+                }
+                enterMap(target, ax, ay);
+                warpedIn = true;
+            });
+        }
+
+        @Override
+        public void setMetatile(int x, int y, int metatile, boolean blocking) {
+            if (!map.layout.inBounds(x, y)) return;
+            int i = y * map.layout.width + x;
+            int old = map.layout.blocks[i];
+            map.layout.blocks[i] = (old & 0xF000) | (blocking ? 0x0C00 : 0) | (metatile & MapLayout.METATILE_MASK);
+            game.data.renderer.redraw(map.layout, render(map), new int[]{i});
+        }
+
+        @Override
+        public void door(int x, int y, boolean open) {
+            DoorAnims.Door d = game.data.doors.at(MapLayout.metatileId(map.layout.blockAt(x, y)));
+            if (d == null) return;
+            door = d;
+            doorX = x;
+            doorY = y;
+            playDoor(open);
+        }
+
+        @Override public boolean doorBusy() { return door != null && !doorDone(); }
+
+        @Override public void fade(int mode) { game.fadeScreen(mode == 1 || mode == 3); }
+        @Override public boolean fadeBusy() { return game.fadeScreenBusy(); }
+
+        @Override
+        public void trainerBattle(int trainerId, int introText, int defeatText) {
+            battling = true;
+            game.push(new TrainerBattleScene(game, game.data.trainers().get(trainerId), defeatText));
+        }
+
+        @Override
+        public void wildBattle(int species, int level) {
+            battling = true;
+            game.push(new BattleScene(game, species, Math.max(1, level)));
+        }
+
+        @Override public boolean battleBusy() { return battling; }
+        @Override public void showMonPic(int species) { monPic = species; }
+        @Override public void hideMonPic() { monPic = -1; }
+
+        @Override
+        public String speciesName(int species) {
+            return species > 0 && species < game.data.species.count() ? game.data.species.get(species).name() : "?";
+        }
+
+        @Override public int playerGender() { return game.save.look == null ? 0 : game.save.look.body(); }
+        @Override public int playerX() { return px; }
+        @Override public int playerY() { return py; }
+        @Override public int playerFacing() { return facing.ordinal(); }
+    }
+
 
     public List<Npc> npcs() {
         return npcs;
@@ -503,12 +859,12 @@ public final class OverworldScene implements Scene {
             n = npcAt(tx + facing.dx, ty + facing.dy);
         }
         if (n != null) {
-            n.face(opposite(facing));
-            if (n.dialogue() == null) n.setDialogue(text(n.event.script()));
-            talking = n;
-            final Npc speaker = n;
-            game.push(new DialogueScene(game, n.dialogue(), () -> { if (talking == speaker) talking = null; },
-                    () -> new DialogueScene.Speaker(screenBounds(speaker), py < speaker.y())));
+            if (n.event.script() >= 0) {
+                speaker = n;
+                startScript(n.event.script(), n.event.localId());
+                return true;
+            }
+            n.face(opposite(facing).ordinal());
             return true;
         }
         for (SignEvent s : map.signs) {
@@ -521,11 +877,7 @@ public final class OverworldScene implements Scene {
                 default -> true;
             };
             if (!facingOk) continue;
-            List<String> pages = text(s.script());
-            if (pages.isEmpty()) continue;
-            final int sx = s.x(), sy = s.y();
-            game.push(new DialogueScene(game, pages, null,
-                    () -> new DialogueScene.Speaker(tileBounds(sx, sy), false)));
+            startScript(s.script(), -1);
             return true;
         }
         return false;
@@ -614,7 +966,7 @@ public final class OverworldScene implements Scene {
         map = target;
         px = x;
         py = y;
-        if (changed) loadNpcs();
+        if (changed) mapLoaded();
         if (newPlace) popupTimer = POPUP_FRAMES;
         render(target); // précharge
         for (Connection c : target.connections) {
@@ -822,9 +1174,12 @@ public final class OverworldScene implements Scene {
         MapRenderer.Rendered current = render(map);
         double ex = exactX(), ey = exactY();
         int hop = 0;
-        if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * 10);
+        if (moving && (distance > T || hopStep)) {
+            hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * (distance > T ? 10 : 6));
+        }
         // Comme sur GBA : pied en avant pendant la 1re moitié du pas, position de repos pendant la 2de
-        int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
+        int step = moving && distance == T && animateStep && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
+        if (playerInPlace > 0) step = (playerInPlace / 8) % 2 == 0 ? (stepLeftFoot ? 1 : 2) : 0; // marche sur place
         // Course, rythme GBA : phase en l'air (jambes groupées) sur 5/8 de la case, puis appui sur un pied ;
         // le pied d'appui alterne à chaque case (gauche, droite, gauche…)
         boolean run = moving && running;
@@ -868,13 +1223,71 @@ public final class OverworldScene implements Scene {
         world.drawImage(current.above(), 0, 0, null);
         world.dispose();
 
+        // Bulles « ! » / « ? » au-dessus des têtes
+        for (Npc n : npcs) {
+            if (n.emote() >= 0 && n.visible()) {
+                drawEmote(g, n.emote(), originX + (n.exactX(interp) + T / 2.0) * zoom,
+                        originY + (n.exactY(interp) + T - n.height() - 2) * zoom, zoom);
+            }
+        }
+        if (playerEmoteTimer > 0 && !hidden) {
+            drawEmote(g, playerEmote, originX + (ex + T / 2.0) * zoom, originY + (ey - T - 2) * zoom, zoom);
+        }
+
         drawHud(g, w, h);
+        if (monPic > 0) drawMonPic(g, w, h);
+        box.render(g, w, h);
+    }
+
+    /** Bulle d'émotion : 0 « ! », 1 « ? », 2 « !! », 3 « ♥ », 4 « … ». */
+    private void drawEmote(Graphics2D g, int kind, double cx, double bottom, int zoom) {
+        double s = Math.max(2, zoom) / 3.0;
+        double bw = 26 * s, bh = 24 * s, x = cx - bw / 2, y = bottom - bh - 4 * s;
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        java.awt.geom.Path2D tail = new java.awt.geom.Path2D.Double();
+        tail.moveTo(cx - 5 * s, y + bh - 1);
+        tail.lineTo(cx + 5 * s, y + bh - 1);
+        tail.lineTo(cx, y + bh + 6 * s);
+        tail.closePath();
+        java.awt.geom.Area a = new java.awt.geom.Area(new java.awt.geom.RoundRectangle2D.Double(x, y, bw, bh, 10 * s, 10 * s));
+        a.add(new java.awt.geom.Area(tail));
+        g.setColor(java.awt.Color.WHITE);
+        g.fill(a);
+        g.setColor(new java.awt.Color(0x262838));
+        g.setStroke(new java.awt.BasicStroke((float) (1.6 * s)));
+        g.draw(a);
+        String t = switch (kind) {
+            case 1 -> "?";
+            case 2 -> "!!";
+            case 3 -> "♥";
+            case 4 -> "…";
+            default -> "!";
+        };
+        g.setColor(kind == 3 ? new java.awt.Color(0xE84855) : new java.awt.Color(0xE04040));
+        g.setFont(dev.orvaen.mmo.engine.HiUi.font((float) (17 * s), true));
+        dev.orvaen.mmo.engine.HiUi.centered(g, t, x, y - s, bw, bh);
+    }
+
+    /** Portrait d'un Pokémon montré par un script (choix du starter…). */
+    private void drawMonPic(Graphics2D g, int w, int h) {
+        BufferedImage img = game.data.species.frontSprite(monPic);
+        if (img == null) return;
+        double s = Math.max(0.8, Math.min(1.6, h / 720.0));
+        double size = Math.floor(3 * s) * 64, pad = 18 * s;
+        double x = (w - size) / 2 - pad, y = h * 0.16;
+        dev.orvaen.mmo.engine.HiUi.fill(g, new java.awt.Color(0, 0, 0, 70), x + 3, y + 5, size + pad * 2, size + pad * 2, 16 * s);
+        dev.orvaen.mmo.engine.HiUi.fill(g, new java.awt.Color(0xF2F3F8), x, y, size + pad * 2, size + pad * 2, 16 * s);
+        dev.orvaen.mmo.engine.HiUi.stroke(g, dev.orvaen.mmo.engine.HiUi.PANEL_BORDER, x, y, size + pad * 2, size + pad * 2, 16 * s, 2f);
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g.drawImage(img, (int) (x + pad), (int) (y + pad), (int) size, (int) size, null);
     }
 
     /** Un PNJ, pieds en bas de sa case, calé au pixel de l'écran comme le joueur. */
     private void drawNpc(Graphics2D g, Npc n, double originX, double originY, int zoom, double interp) {
+        if (!n.visible()) return;
         BufferedImage img = n.frame();
         double wx = n.exactX(interp) + (T - n.width()) / 2.0, wy = n.exactY(interp) + T - n.height();
+        double lift = n.hopHeight(interp);
         Graphics2D q = (Graphics2D) g.create();
         q.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
                 java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
@@ -884,7 +1297,7 @@ public final class OverworldScene implements Scene {
             q.setColor(new java.awt.Color(0, 0, 0, 60));
             q.fillOval((n.width() - 10) / 2, n.height() - 4, 10, 4);
         }
-        q.drawImage(img, 0, 0, null);
+        q.drawImage(img, 0, (int) -Math.round(lift), null);
         q.dispose();
     }
 
