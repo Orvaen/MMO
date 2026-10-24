@@ -200,15 +200,10 @@ public final class HiWindow {
         if (placed) Storage.setUiRect(key, x, y, w, h);
     }
 
-    /** Ombre, panneau, barre de titre, bouton de fermeture et poignée de redimensionnement. */
+    /** Panneau, barre de titre, bouton de fermeture et poignée de redimensionnement (sans ombre). */
     public void paintFrame(Graphics2D g, String title) {
         place();
         double s = scale();
-        double appear = Math.min(1, frame / 6.0);
-        int alpha = (int) (255 * appear);
-        for (int i = 6; i >= 1; i--) {
-            HiUi.fill(g, new Color(0, 0, 0, 22 * alpha / 255), x - i * 2, y - i * 2 + 5, w + i * 4, h + i * 4, 14);
-        }
         HiUi.fill(g, HiUi.PANEL, x, y, w, h, 6 * s);
         HiUi.fill(g, dragging() && drag == Drag.MOVE ? new Color(0x23253A) : HiUi.HEADER, x, y, w, HEADER * s, 6 * s);
         g.setColor(dragging() && drag == Drag.MOVE ? new Color(0x23253A) : HiUi.HEADER);

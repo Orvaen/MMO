@@ -923,6 +923,8 @@ public final class SelfTest {
         a.playBgm(1);
         a.toggleMute();
         check(energy(a, 4410) < 1e-9, "F9 : son coupé");
+        // un seul canal carré : une nouvelle note coupe la précédente (sinon les fins de notes s'empilent)
+        eq(1, dev.orvaen.mmo.audio.AudioProbe.maxSquareVoices(SyntheticRom.build()), "notes carrées en même temps");
     }
 
     private static void tileAnimation() {

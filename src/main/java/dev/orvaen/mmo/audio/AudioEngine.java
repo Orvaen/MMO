@@ -312,6 +312,21 @@ public final class AudioEngine {
                 return;
             }
         }
+        if (v.cgb()) {
+            // La GBA n'a qu'UN canal de chaque sorte (carré 1, carré 2, onde, bruit) : une nouvelle note
+            // coupe celle qui sonnait sur le même canal. Sans ça, les « queues » des notes s'empilent
+            // et la mélodie devient une bouillie de notes qui se chevauchent.
+            v.channel = type & 7;
+            Voice old = null;
+            for (Voice o : voices) if (!o.done && o.cgb() && o.channel == v.channel) old = o;
+            if (old != null) {
+                MusicPlayer oldOwner = ownerOf(old);
+                // un effet sonore (ou une fanfare) garde son canal tant que sa note n'est pas relâchée
+                if (oldOwner != player && oldOwner != null && oldOwner != bgm && player == bgm && old.stage < 3) return;
+                v.takeOver(old);
+                voices.remove(old);
+            }
+        }
         if (voices.size() >= MAX_VOICES) {
             // on libère la plus ancienne note déjà relâchée (sinon la plus ancienne)
             Voice drop = null;
@@ -342,6 +357,13 @@ public final class AudioEngine {
             if (immediate) v.done = true;
             else v.release();
         }
+    }
+
+    /** Notes jouées en ce moment sur les canaux Game Boy (pour les tests). */
+    synchronized int liveGameBoyVoices() {
+        int n = 0;
+        for (Voice v : voices) if (!v.done && v.cgb()) n++;
+        return n;
     }
 
     int voicesOf(MusicPlayer player) {

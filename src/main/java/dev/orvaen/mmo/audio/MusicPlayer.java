@@ -38,9 +38,26 @@ final class MusicPlayer {
             return bend / 64.0 * bendRange;
         }
 
+        int modM;                  // écart du vibrato en cours (-mod..mod)
+
+        /** Vibrato en demi-tons (m4a : 16 × modM, en 1/256 de demi-ton). */
         double vibrato() {
-            if (mod == 0 || modType != 0 || lfoWait > 0) return 0;
-            return Math.sin(lfoPhase * Math.PI * 2 / 256.0) * mod / 16.0;
+            return modType == 0 ? modM / 16.0 : 0;
+        }
+
+        /** Le LFO avance d'un cran par tick, en triangle (comme le moteur m4a). */
+        void lfoTick() {
+            if (lfoSpeed == 0 || mod == 0) {
+                modM = 0;
+                return;
+            }
+            if (lfoWait > 0) {
+                lfoWait--;
+                return;
+            }
+            lfoPhase = (lfoPhase + lfoSpeed) & 0xFF;
+            int r = (byte) (lfoPhase - 64) < 0 ? (byte) lfoPhase : 128 - lfoPhase;
+            modM = mod * r >> 6;
         }
     }
 
@@ -91,10 +108,6 @@ final class MusicPlayer {
             tempoCounter -= 150;
             tick();
         }
-        for (Track t : tracks) {
-            if (t.lfoWait > 0) t.lfoWait--;
-            else t.lfoPhase = (t.lfoPhase + t.lfoSpeed) & 0xFF;
-        }
         boolean any = false;
         for (Track t : tracks) any |= t.active;
         if (!any && engine.voicesOf(this) == 0) finished = true;
@@ -113,6 +126,7 @@ final class MusicPlayer {
             if (t.wait > 0) t.wait--;
             int guard = 0;
             while (t.active && t.wait == 0 && guard++ < 512) execute(t);
+            t.lfoTick();
         }
     }
 
@@ -189,7 +203,10 @@ final class MusicPlayer {
                 t.lfoDelay = u8(t);
                 t.lfoWait = t.lfoDelay;
             }
-            case MOD -> t.mod = u8(t);
+            case MOD -> {
+                t.mod = u8(t);
+                if (t.mod == 0) t.modM = 0;
+            }
             case MODT -> t.modType = u8(t);
             case TUNE -> t.tune = (u8(t) - 64) * 4;
             case XCMD -> t.pc += 2;
@@ -211,6 +228,11 @@ final class MusicPlayer {
             }
         }
         t.lastGate = gate;
+        if (t.lfoDelay > 0) {                         // le vibrato retardé repart à chaque note
+            t.lfoWait = t.lfoDelay;
+            t.lfoPhase = 0;
+            t.modM = 0;
+        }
         int length = cmd == TIE ? -1 : CLOCK[cmd - 0xCF] + t.lastGate;
         engine.noteOn(this, t, t.voice, t.lastKey, t.lastVelocity, length);
     }

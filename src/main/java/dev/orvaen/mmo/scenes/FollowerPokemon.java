@@ -148,13 +148,6 @@ final class FollowerPokemon {
         double wx = ex + T / 2.0 - 16, wy = ey + T - 29 - lift;
         Graphics2D q = (Graphics2D) g.create();
         q.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        q.translate(Math.round(originX + (ex + T / 2.0 - 7) * zoom), Math.round(originY + (ey + T - 4) * zoom));
-        q.scale(zoom, zoom);
-        q.setColor(new java.awt.Color(0, 0, 0, 55));              // ombre au sol (ne saute pas)
-        q.fillOval(0, 0, 14, 4);
-        q.dispose();
-        q = (Graphics2D) g.create();
-        q.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         q.translate(Math.round(originX + wx * zoom), Math.round(originY + wy * zoom));
         q.scale(zoom, zoom);
         BufferedImage img = frames[frame];
