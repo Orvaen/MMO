@@ -117,7 +117,9 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   collisions et niveaux d'élévation (on ne marche pas sur l'eau), corniches,
   portes animées comme sur GBA (la porte s'ouvre, on entre, elle se referme ; à la sortie elle est
   ouverte et se referme derrière toi — animations lues dans la ROM), escaliers / tapis de sortie,
-  course avec les vraies frames de course de la ROM (B), nom de la zone à l'entrée
+  course avec les vraies frames de course de la ROM (B), un peu plus posée que sur GBA (10 frames par
+  case au lieu de 8 ; réglable avec `move.runFrames` dans `~/.orvaen-mmo/config.properties`),
+  nom de la zone à l'entrée
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
 - **Pokédex** : toutes les espèces de la ROM (sprite, types, statistiques), vues / capturées

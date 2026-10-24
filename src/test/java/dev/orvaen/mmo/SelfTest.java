@@ -69,6 +69,7 @@ public final class SelfTest {
         test("Moteur : sortie par une porte animée", SelfTest::doorExit);
         test("Portes : table d'animations retrouvée dans la ROM", SelfTest::doorTable);
         test("Course : frames de course de la ROM", SelfTest::runFrames);
+        test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
@@ -393,6 +394,23 @@ public final class SelfTest {
             eq(pal[s + 1] | 0xFF000000, frames[s].getRGB(8, 8), "couleur de l'étape " + s);
         }
         eq(32, d.doors.frames(big, layout, d.renderer)[0].getHeight(), "image de porte haute");
+    }
+
+    private static void runSpeed() {
+        Game g = game();
+        OverworldScene w = world(g);
+        g.input().set(Button.B, true);
+        g.input().set(Button.DOWN, true);
+        g.simulateFrame();                      // départ : (1,2) → (1,3), en courant
+        check(w.isMoving(), "la course démarre");
+        int frames = 1;
+        while (w.playerY() == 2 && frames < 40) {
+            g.simulateFrame();
+            frames++;
+        }
+        g.input().set(Button.B, false);
+        g.input().set(Button.DOWN, false);
+        eq(1 + 10, frames, "frame de départ + 10 frames pour une case en courant");
     }
 
     private static void runFrames() {

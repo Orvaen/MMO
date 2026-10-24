@@ -5,6 +5,7 @@ import dev.orvaen.mmo.engine.Game;
 import dev.orvaen.mmo.engine.Input;
 import dev.orvaen.mmo.engine.Input.Button;
 import dev.orvaen.mmo.engine.Scene;
+import dev.orvaen.mmo.engine.Storage;
 import dev.orvaen.mmo.engine.Ui;
 import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.world.Connection;
@@ -46,7 +47,7 @@ public final class OverworldScene implements Scene {
     private Direction facing = Direction.DOWN;
     private int elevation = 3;
     private boolean moving;
-    private int progress;               // pixels parcourus vers la case suivante
+    private double progress;            // pixels parcourus vers la case suivante
     private int distance;               // 16 (pas) ou 32 (saut de corniche)
     private int turnTimer;
     private int animCounter;
@@ -232,7 +233,9 @@ public final class OverworldScene implements Scene {
         distance = dist;
         stepLeftFoot = !stepLeftFoot;
         this.running = running && dist == T;
-        speed = dist > T ? 2 : running ? 2 : 1;
+        // Marche : 16 frames par case (GBA). Course : plus posée que les chaussures de course GBA
+        // (8 frames), plus proche de PokeMMO ; réglable dans config.properties (move.runFrames).
+        speed = dist > T ? 2 : running ? T / (double) runFrames : 1;
     }
 
     // ------------------------------------------------------------------ portes
@@ -313,11 +316,12 @@ public final class OverworldScene implements Scene {
         return hidden;
     }
 
-    private int speed = 1;
+    private double speed = 1;
+    private final int runFrames = Storage.runFramesPerTile();
 
     private void advanceMove(Input in) {
         progress += speed;
-        if (progress < distance) return;
+        if (progress < distance - 1e-6) return;
         moving = false;
         int tiles = distance / T;
         px += facing.dx * tiles;
@@ -650,7 +654,7 @@ public final class OverworldScene implements Scene {
         int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
         // Course, comme sur GBA : 5 frames d'élan puis 3 frames de foulée, pied alterné à chaque case
         boolean run = moving && running;
-        if (run) step = progress >= 10 ? (stepLeftFoot ? 1 : 2) : 0;
+        if (run) step = progress >= distance * 0.625 - 1e-6 ? (stepLeftFoot ? 1 : 2) : 0;
         // Joueur calé sur un pixel entier de l'écran : chaque pixel du sprite fait exactement « zoom » pixels
         // (sinon, en nearest-neighbor, certains pixels font 2 ou 4 de large et le sprite tremble en marchant)
         Graphics2D p = (Graphics2D) g.create();

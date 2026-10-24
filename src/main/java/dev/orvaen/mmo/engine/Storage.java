@@ -59,6 +59,16 @@ public final class Storage {
         write(CONFIG, p, "Configuration du moteur");
     }
 
+    /** Frames pour courir d'une case (8 = chaussures de course GBA ; 10 par défaut, plus posé). */
+    public static int runFramesPerTile() {
+        try {
+            int v = Integer.parseInt(read(CONFIG).getProperty("move.runFrames", "10").trim());
+            return Math.max(6, Math.min(16, v));
+        } catch (NumberFormatException e) {
+            return 10;
+        }
+    }
+
     /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
     public static RomCheck.Slot lastSlot() {
         String v = read(CONFIG).getProperty("rom.last", "");
