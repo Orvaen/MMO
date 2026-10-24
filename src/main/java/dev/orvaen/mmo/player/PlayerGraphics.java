@@ -13,7 +13,8 @@ import dev.orvaen.mmo.rom.RomException;
  * Les tables sont retrouvées par leur forme, sans adresse codée en dur :
  * <ul>
  *   <li>marche : {@code ObjectEventGraphicsInfo} (tileTag 0xFFFF, palette 0x1100 / 0x1110, 16x32),
- *       9 frames non compressées de 256 octets ;</li>
+ *       9 frames non compressées de 256 octets, suivies des 9 frames de course (bras qui balancent,
+ *       buste penché) ;</li>
  *   <li>palette de marche : entrée {ptr, 0x1100} de la table des palettes d'objets ;</li>
  *   <li>portraits : tables {ptr, 0x800, n°} et {ptr, n°} des dresseurs (n° 135 / 136) ;</li>
  *   <li>dos en combat : table {ptr, 0x2800, 0} {ptr, 0x2800, 1} et ses palettes.</li>
@@ -25,6 +26,8 @@ public final class PlayerGraphics {
 
     public static final int BOY = 0, GIRL = 1;
     public static final int OW_FRAMES = 9;
+    /** Frames de course, rangées juste après la marche : sud 9-11, nord 12-14, ouest 15-17. */
+    public static final int RUN_FIRST = 9, RUN_FRAMES = 9;
 
     private static final int[] OW_PALETTE_TAGS = {0x1100, 0x1110};
     private static final int[] FRONT_PIC_IDS = {135, 136};
@@ -57,7 +60,10 @@ public final class PlayerGraphics {
     /** Sprites fournis directement (packs de sprites, outils, tests) ; index 0 = garçon, 1 = fille. */
     public PlayerGraphics(Source[][] overworld, Source[] front, Source[] back) {
         for (int body = BOY; body <= GIRL; body++) {
-            if (overworld[body].length != OW_FRAMES) throw new IllegalArgumentException("9 frames de marche attendues");
+            int n = overworld[body].length;
+            if (n != OW_FRAMES && n != OW_FRAMES + RUN_FRAMES) {
+                throw new IllegalArgumentException("9 frames de marche (+ 9 de course) attendues");
+            }
             this.overworld[body] = overworld[body].clone();
             this.front[body] = front[body];
             this.back[body] = back[body];
@@ -78,6 +84,11 @@ public final class PlayerGraphics {
         return overworld[body][frame];
     }
 
+    /** La ROM fournit-elle les frames de course (sinon on court avec celles de marche) ? */
+    public boolean hasRunFrames(int body) {
+        return overworld[body].length >= RUN_FIRST + RUN_FRAMES;
+    }
+
     public Source front(int body) {
         return front[body];
     }
@@ -91,8 +102,16 @@ public final class PlayerGraphics {
     private static Source[] readOverworld(Rom rom, int paletteTag, int[] palette) {
         int info = findGraphicsInfo(rom, paletteTag);
         int images = rom.requirePointer(info + 0x1C, "les frames du joueur");
-        Source[] frames = new Source[OW_FRAMES];
-        for (int f = 0; f < OW_FRAMES; f++) {
+        boolean run = true;
+        for (int f = RUN_FIRST; f < RUN_FIRST + RUN_FRAMES; f++) {
+            int e = images + f * 8;
+            if (!rom.inRange(e, 8) || rom.pointer(e) < 0 || rom.u16(e + 4) != OW_FRAME_BYTES) {
+                run = false;
+                break;
+            }
+        }
+        Source[] frames = new Source[run ? RUN_FIRST + RUN_FRAMES : OW_FRAMES];
+        for (int f = 0; f < frames.length; f++) {
             int data = rom.requirePointer(images + f * 8, "la frame " + f + " du joueur");
             frames[f] = new Source(rom.slice(data, OW_FRAME_BYTES), 2, 4, palette);
         }

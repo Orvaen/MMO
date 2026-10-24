@@ -65,7 +65,10 @@ public final class SelfTest {
         test("Rendu : sol, calque supérieur, tileset secondaire", SelfTest::rendering);
         test("Rencontres : table d'herbe et probabilités", SelfTest::wild);
         test("Moteur : marche, liaison vers la carte voisine", SelfTest::walkThroughConnection);
-        test("Moteur : warp en marchant sur une porte", SelfTest::warp);
+        test("Moteur : porte animée — ouverture, entrée, fermeture, warp", SelfTest::warp);
+        test("Moteur : sortie par une porte animée", SelfTest::doorExit);
+        test("Portes : table d'animations retrouvée dans la ROM", SelfTest::doorTable);
+        test("Course : frames de course de la ROM", SelfTest::runFrames);
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
@@ -331,10 +334,73 @@ public final class SelfTest {
     private static void warp() {
         Game g = game();
         OverworldScene w = world(g);
-        hold(g, Button.UP, 16);
+        g.input().set(Button.UP, true);
+        int opened = -1, frame = 0;
+        boolean waited = false, hiddenBeforeWarp = false;
+        for (; frame < 300 && !w.currentMap().name.equals("ROUTE TEST"); frame++) {
+            g.simulateFrame();
+            if (frame == 10) g.input().set(Button.UP, false);
+            if (w.doorStage() == 0 && w.playerY() == 2 && !w.isMoving()) waited = true;
+            opened = Math.max(opened, w.doorStage());
+            if (w.playerHidden() && w.playerY() == 1) hiddenBeforeWarp = true;
+        }
+        check(waited, "le joueur attend devant la porte pendant qu'elle s'ouvre");
+        eq(2, opened, "porte entièrement ouverte");
+        check(hiddenBeforeWarp, "le joueur disparaît dans l'encadrement avant le fondu");
+        check(frame > 50, "ouverture + pas + fermeture avant le fondu (" + frame + " frames)");
+        for (int i = 0; i < 30; i++) g.simulateFrame();
         eq("ROUTE TEST", w.currentMap().name, "le warp mène à B");
         eq(2, w.playerX(), "arrivée sur le warp de B (x)");
         eq(1, w.playerY(), "arrivée sur le warp de B (y)");
+        check(!w.playerHidden(), "visible à l'arrivée");
+    }
+
+    private static void doorExit() {
+        Game g = game();
+        OverworldScene w = world(g);
+        w.enterMap(g.data.maps.load(0, 1), 2, 2);  // sous le warp de B
+        hold(g, Button.UP, 10);                      // B → porte de A
+        boolean hiddenAtDoor = false;
+        int stageWhileHidden = -1;
+        for (int i = 0; i < 200; i++) {
+            g.simulateFrame();
+            if (w.currentMap().name.equals("BOURG TEST") && w.playerHidden()) {
+                hiddenAtDoor = true;
+                stageWhileHidden = w.doorStage();
+            }
+        }
+        eq("BOURG TEST", w.currentMap().name, "retour dans A");
+        check(hiddenAtDoor, "on arrive derrière la porte, invisible");
+        eq(2, stageWhileHidden, "porte ouverte à l'arrivée");
+        eq(1, w.playerX(), "sortie : x");
+        eq(2, w.playerY(), "sortie : un pas vers le bas");
+        check(!w.playerHidden(), "visible après la sortie");
+        eq(-1, w.doorStage(), "porte refermée");
+    }
+
+    private static void doorTable() {
+        GameData d = data();
+        eq(6, d.doors.count(), "6 portes");
+        check(d.doors.at(SyntheticRom.DOOR_METATILE) != null, "porte du warp de A");
+        check(d.doors.at(0) == null, "pas de porte sur l'herbe");
+        var big = d.doors.at(SyntheticRom.DOOR_METATILE + 5);
+        eq(2, dev.orvaen.mmo.world.DoorAnims.heightInTiles(big), "porte haute (1x2)");
+        var layout = d.maps.load(0, 0).layout;
+        var frames = d.doors.frames(d.doors.at(SyntheticRom.DOOR_METATILE), layout, d.renderer);
+        eq(3, frames.length, "3 étapes");
+        int[] pal = d.renderer.palettes(layout);
+        for (int s = 0; s < 3; s++) {
+            eq(pal[s + 1] | 0xFF000000, frames[s].getRGB(8, 8), "couleur de l'étape " + s);
+        }
+        eq(32, d.doors.frames(big, layout, d.renderer)[0].getHeight(), "image de porte haute");
+    }
+
+    private static void runFrames() {
+        GameData d = data();
+        check(d.player.hasRunFrames(0) && d.player.hasRunFrames(1), "frames de course lues");
+        PlayerSprite s = new PlayerSprite(d.player, PlayerLook.defaults());
+        check(s.overworldFrame(Direction.DOWN, 0, true).getRGB(1, 30) >>> 24 != 0, "frame de course utilisée");
+        check(s.overworldFrame(Direction.DOWN, 0, false).getRGB(1, 30) >>> 24 == 0, "frame de marche distincte");
     }
 
     private static void collision() {

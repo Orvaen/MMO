@@ -43,23 +43,38 @@ public final class PlayerSprite {
      * @param step 0 immobile, 1 / 2 : pied gauche / droit en avant
      */
     public void drawOverworld(Graphics2D g, int x, int y, Direction facing, int step, int hop) {
+        drawOverworld(g, x, y, facing, step, hop, false);
+    }
+
+    /** Idem, avec les frames de course (bras qui balancent, buste penché) si {@code running}. */
+    public void drawOverworld(Graphics2D g, int x, int y, Direction facing, int step, int hop, boolean running) {
         if (gfx == null) {
             fallback.draw(g, x, y, facing, step, hop);
             return;
         }
         g.setColor(new java.awt.Color(0, 0, 0, 60));
         g.fillOval(x + 3, y + 12, 10, 4);
-        g.drawImage(overworldFrame(facing, step), x, y - 16 - hop, null);
+        g.drawImage(overworldFrame(facing, step, running), x, y - 16 - hop, null);
     }
 
     /** Frame de marche 16x32 (exposée pour les tests et l'écran de création). */
     public BufferedImage overworldFrame(Direction facing, int step) {
+        return overworldFrame(facing, step, false);
+    }
+
+    /**
+     * Frame 16x32 du monde.
+     * @param running frames de course de la ROM : 9 + 3 × orientation + (0 élan, 1 / 2 foulée)
+     */
+    public BufferedImage overworldFrame(Direction facing, int step, boolean running) {
         int base = switch (facing) {
             case DOWN -> 0;
             case UP -> 1;
             case LEFT, RIGHT -> 2;
         };
-        int frame = step == 0 ? base : 3 + base * 2 + (step - 1);
+        boolean run = running && gfx != null && gfx.hasRunFrames(look.body());
+        int frame = run ? PlayerGraphics.RUN_FIRST + base * 3 + step
+                : step == 0 ? base : 3 + base * 2 + (step - 1);
         boolean flip = facing == Direction.RIGHT;
         int key = frame * 2 + (flip ? 1 : 0);
         return frames.computeIfAbsent(key, k -> {
@@ -72,7 +87,9 @@ public final class PlayerSprite {
             };
             List<CosmeticMasks.Rule> rules = body == PlayerGraphics.GIRL
                     ? CosmeticMasks.OVERWORLD_GIRL : CosmeticMasks.OVERWORLD_BOY;
-            return Recolor.render(gfx.overworld(body, frame), rules, look, facingBit, frame >= 3 ? 1 : 0, flip);
+            // Les frames de pas sont décalées d'1 px par rapport aux masques ; celles de course non
+            int shift = frame >= 3 && frame < PlayerGraphics.RUN_FIRST ? 1 : 0;
+            return Recolor.render(gfx.overworld(body, frame), rules, look, facingBit, shift, flip);
         });
     }
 

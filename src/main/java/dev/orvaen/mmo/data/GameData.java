@@ -2,6 +2,7 @@ package dev.orvaen.mmo.data;
 
 import dev.orvaen.mmo.player.PlayerGraphics;
 import dev.orvaen.mmo.rom.Rom;
+import dev.orvaen.mmo.world.DoorAnims;
 import dev.orvaen.mmo.world.MapRenderer;
 import dev.orvaen.mmo.world.MapRepository;
 
@@ -13,6 +14,7 @@ public final class GameData {
     public final MapRepository maps;
     public final WildEncounters wild;
     public final MapRenderer renderer;
+    public final DoorAnims doors;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -21,6 +23,7 @@ public final class GameData {
         this.maps = new MapRepository(rom);
         this.wild = new WildEncounters(rom, species.count());
         this.renderer = new MapRenderer(rom.profile());
+        this.doors = new DoorAnims(rom);
         this.player = new PlayerGraphics(rom);
     }
 

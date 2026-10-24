@@ -8,6 +8,7 @@ import dev.orvaen.mmo.engine.Scene;
 import dev.orvaen.mmo.engine.Ui;
 import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.world.Connection;
+import dev.orvaen.mmo.world.DoorAnims;
 import dev.orvaen.mmo.world.GameMap;
 import dev.orvaen.mmo.world.MapLayout;
 import dev.orvaen.mmo.world.MapRenderer;
@@ -50,6 +51,18 @@ public final class OverworldScene implements Scene {
     private int turnTimer;
     private int animCounter;
     private boolean stepLeftFoot;
+    private boolean running;            // pas en cours fait en courant (B)
+    private boolean hidden;             // joueur passé derrière une porte
+
+    // Porte animée (entrée : ouverture → on entre → fermeture → fondu ; sortie : l'inverse)
+    private enum DoorPhase { NONE, OPEN_TO_ENTER, WALK_IN, CLOSE_THEN_WARP, WAIT_EXIT, WALK_OUT, CLOSE_AFTER_EXIT }
+    private DoorPhase doorPhase = DoorPhase.NONE;
+    private DoorAnims.Door door;
+    private int doorX, doorY;
+    private int[] doorSequence = {};    // étapes à jouer (-1 = fermée), STAGE_FRAMES frames chacune
+    private int doorTick;
+    private int doorStage = -1;         // étape affichée
+    private Warp doorWarp;
 
     // États divers
     private Direction autoStep;         // sortie automatique d'une porte
@@ -102,6 +115,11 @@ public final class OverworldScene implements Scene {
         if (popupTimer > 0) popupTimer--;
         if (messageTimer > 0) messageTimer--;
 
+        if (doorPhase != DoorPhase.NONE) {
+            updateDoor();
+            if (moving) advanceMove(in);
+            return;
+        }
         if (moving) {
             advanceMove(in);
             return;
@@ -171,13 +189,28 @@ public final class OverworldScene implements Scene {
             }
         }
 
+        // Porte animée : elle s'ouvre, on entre, elle se referme, puis fondu (comme sur GBA)
+        Optional<Warp> front = map.warpAt(tx, ty);
+        if (dir == Direction.UP && front.isPresent() && !isArrowWarp(map.behaviorAt(tx, ty)) && !game.isFading()) {
+            DoorAnims.Door d = game.data.doors.at(MapLayout.metatileId(map.layout.blockAt(tx, ty)));
+            if (d != null) {
+                facing = dir;
+                door = d;
+                doorX = tx;
+                doorY = ty;
+                doorWarp = front.get();
+                playDoor(true);
+                doorPhase = DoorPhase.OPEN_TO_ENTER;
+                return;
+            }
+        }
+
         if (canEnter(map, tx, ty)) {
             startMove(dir, running, T);
             return;
         }
 
-        // Porte ou escalier « bloquant » : on entre directement
-        Optional<Warp> front = map.warpAt(tx, ty);
+        // Escalier ou porte sans animation, « bloquants » : on entre directement
         if (front.isPresent()) {
             doWarp(front.get());
             return;
@@ -198,7 +231,86 @@ public final class OverworldScene implements Scene {
         progress = 0;
         distance = dist;
         stepLeftFoot = !stepLeftFoot;
+        this.running = running && dist == T;
         speed = dist > T ? 2 : running ? 2 : 1;
+    }
+
+    // ------------------------------------------------------------------ portes
+
+    /** Lance l'ouverture (fermée, 1, 2, 3) ou la fermeture (3, 2, 1, fermée) de la porte. */
+    private void playDoor(boolean open) {
+        doorSequence = open ? new int[]{-1, 0, 1, 2} : new int[]{2, 1, 0, -1};
+        doorTick = 0;
+        doorStage = doorSequence[0];
+    }
+
+    /** Vrai quand la séquence en cours est terminée (la dernière étape reste affichée). */
+    private boolean doorDone() {
+        return doorTick >= doorSequence.length * DoorAnims.STAGE_FRAMES;
+    }
+
+    private void updateDoor() {
+        if (!doorDone()) {
+            doorStage = doorSequence[Math.min(doorSequence.length - 1, doorTick / DoorAnims.STAGE_FRAMES)];
+            doorTick++;
+        }
+        switch (doorPhase) {
+            case OPEN_TO_ENTER -> {
+                if (doorDone()) {
+                    doorPhase = DoorPhase.WALK_IN;
+                    startMove(facing, false, T);
+                }
+            }
+            case CLOSE_THEN_WARP -> {
+                if (doorDone()) {
+                    doorPhase = DoorPhase.NONE;
+                    door = null;
+                    doorStage = -1;
+                    doWarp(doorWarp);
+                }
+            }
+            case WAIT_EXIT -> {
+                // le fondu d'arrivée est fini (la scène ne tourne pas pendant le fondu) : on sort
+                hidden = false;
+                doorPhase = DoorPhase.WALK_OUT;
+                startMove(Direction.DOWN, false, T);
+            }
+            case CLOSE_AFTER_EXIT -> {
+                if (doorDone()) {
+                    doorPhase = DoorPhase.NONE;
+                    door = null;
+                    doorStage = -1;
+                }
+            }
+            default -> { }
+        }
+    }
+
+    /**
+     * Arrivée sur une porte animée : elle est déjà ouverte, le joueur est derrière (invisible)
+     * et sortira vers le bas une fois le fondu terminé, puis elle se refermera.
+     */
+    private boolean exitThroughDoor(GameMap target, int x, int y) {
+        DoorAnims.Door exit = game.data.doors.at(MapLayout.metatileId(target.layout.blockAt(x, y)));
+        if (exit == null) return false;
+        door = exit;
+        doorX = x;
+        doorY = y;
+        playDoor(true);
+        doorTick = doorSequence.length * DoorAnims.STAGE_FRAMES;
+        doorStage = 2;
+        hidden = true;
+        doorPhase = DoorPhase.WAIT_EXIT;
+        return true;
+    }
+
+    /** Étape de porte affichée (-1 : aucune animation en cours) — pour les tests. */
+    public int doorStage() {
+        return door == null ? -1 : doorStage;
+    }
+
+    public boolean playerHidden() {
+        return hidden;
     }
 
     private int speed = 1;
@@ -210,6 +322,18 @@ public final class OverworldScene implements Scene {
         int tiles = distance / T;
         px += facing.dx * tiles;
         py += facing.dy * tiles;
+        if (doorPhase == DoorPhase.WALK_IN) {
+            // dans l'encadrement : le joueur disparaît et la porte se referme derrière lui
+            hidden = true;
+            doorPhase = DoorPhase.CLOSE_THEN_WARP;
+            playDoor(false);
+            return;
+        }
+        if (doorPhase == DoorPhase.WALK_OUT) {
+            doorPhase = DoorPhase.CLOSE_AFTER_EXIT;
+            playDoor(false);
+            return;
+        }
         onStep();
         // Direction toujours maintenue : on enchaîne le pas suivant dans la même frame,
         // sans image d'arrêt entre deux cases (c'est ce qui donnait l'effet saccadé).
@@ -256,11 +380,12 @@ public final class OverworldScene implements Scene {
         GameMap from = map;
         int fromX = px, fromY = py;
         game.fadeThen(() -> {
+            hidden = false;
             try {
                 if (w.isDynamic() || !game.data.maps.exists(w.targetGroup(), w.targetNum())) {
                     if (returnMap != null) {
                         enterMap(returnMap, returnX, returnY);
-                        autoStep = Direction.DOWN;
+                        if (!exitThroughDoor(returnMap, returnX, returnY)) autoStep = Direction.DOWN;
                     }
                     return;
                 }
@@ -281,7 +406,10 @@ public final class OverworldScene implements Scene {
                     ay = s[1];
                 }
                 enterMap(target, ax, ay);
-                if (target.behaviorAt(ax, ay) == BEHAVIOR_DOOR || MapLayout.collision(target.layout.blockAt(ax, ay)) != 0) {
+                if (exitThroughDoor(target, ax, ay)) {
+                    // la sortie animée prend le relais
+                } else if (target.behaviorAt(ax, ay) == BEHAVIOR_DOOR
+                        || MapLayout.collision(target.layout.blockAt(ax, ay)) != 0) {
                     autoStep = Direction.DOWN;
                 }
             } catch (RomException e) {
@@ -298,6 +426,10 @@ public final class OverworldScene implements Scene {
         if (elevation == 15) elevation = 3;
         moving = false;
         facing = Direction.DOWN;
+        hidden = false;
+        doorPhase = DoorPhase.NONE;
+        door = null;
+        doorStage = -1;
         if (newPlace) popupTimer = POPUP_FRAMES;
         rememberPosition();
         game.save.store(); // sauvegarde auto à chaque entrée de carte
@@ -484,6 +616,13 @@ public final class OverworldScene implements Scene {
             g.drawImage(render(t).below(), o[0] * T - camX, o[1] * T - camY, null);
         }
         g.drawImage(current.below(), -camX, -camY, null);
+
+        // 3. Porte en cours d'animation (remplace le métatile de la porte, et celui du dessus si elle est haute)
+        if (door != null && doorStage >= 0) {
+            BufferedImage[] frames = game.data.doors.frames(door, map.layout, game.data.renderer);
+            int up = DoorAnims.heightInTiles(door) - 1;
+            g.drawImage(frames[doorStage], doorX * T - camX, (doorY - up) * T - camY, null);
+        }
     }
 
     /** Fenêtre réelle : joueur, herbe devant les jambes, toits et cimes, puis l'interface. */
@@ -509,6 +648,9 @@ public final class OverworldScene implements Scene {
         if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * 10);
         // Comme sur GBA : pied en avant pendant la 1re moitié du pas, position de repos pendant la 2de
         int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
+        // Course, comme sur GBA : 5 frames d'élan puis 3 frames de foulée, pied alterné à chaque case
+        boolean run = moving && running;
+        if (run) step = progress >= 10 ? (stepLeftFoot ? 1 : 2) : 0;
         // Joueur calé sur un pixel entier de l'écran : chaque pixel du sprite fait exactement « zoom » pixels
         // (sinon, en nearest-neighbor, certains pixels font 2 ou 4 de large et le sprite tremble en marchant)
         Graphics2D p = (Graphics2D) g.create();
@@ -517,8 +659,8 @@ public final class OverworldScene implements Scene {
         p.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
         p.translate(Math.round(originX + ex * zoom), Math.round(originY + ey * zoom));
         p.scale(zoom, zoom);
-        avatar.drawOverworld(p, 0, 0, facing, step, hop);
-        if (!moving && map.isLandEncounterAt(px, py) && map.behaviorAt(px, py) == 0x02) {
+        if (!hidden) avatar.drawOverworld(p, 0, 0, facing, step, hop, run);
+        if (!hidden && !moving && map.isLandEncounterAt(px, py) && map.behaviorAt(px, py) == 0x02) {
             BufferedImage below = current.below();
             int gx = px * T, gy = py * T + 9;
             if (gx >= 0 && gy >= 0 && gx + T <= below.getWidth() && gy + 7 <= below.getHeight()) {

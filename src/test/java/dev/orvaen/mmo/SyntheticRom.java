@@ -38,6 +38,7 @@ public final class SyntheticRom {
         int secondary = buildSecondaryTileset();
         buildMapsAndWild(primary, secondary);
         buildPlayerGraphics();
+        buildDoorAnims();
         return rom;
     }
 
@@ -95,11 +96,15 @@ public final class SyntheticRom {
         System.arraycopy(frame0, 0, rom, f0, 256);
         int f1 = alloc(256);
         System.arraycopy(frame, 0, rom, f1, 256);
+        byte[] runFrame = frame.clone();
+        setPixel(runFrame, 2, 1, 30, 0x5); // marque propre aux frames de course
+        int f2 = alloc(256);
+        System.arraycopy(runFrame, 0, rom, f2, 256);
 
         for (int tag : new int[]{0x1100, 0x1110}) {
-            int images = alloc(9 * 8);
-            for (int i = 0; i < 9; i++) {
-                ptr(images + i * 8, i == 0 ? f0 : f1);
+            int images = alloc(18 * 8);
+            for (int i = 0; i < 18; i++) {
+                ptr(images + i * 8, i == 0 ? f0 : i < 9 ? f1 : f2);
                 w16(images + i * 8 + 4, 0x100);
             }
             int info = alloc(0x24);
@@ -278,6 +283,7 @@ public final class SyntheticRom {
         int[] gridA = new int[6 * 5];
         for (int i = 0; i < gridA.length; i++) gridA[i] = 0x3000;
         for (int x = 0; x < 6; x++) gridA[2 * 6 + x] = 0x3000 | 1;
+        gridA[6 + 1] = 0x3000 | DOOR_METATILE; // porte animée sur le warp vers B
         gridA[5] = 0x3000 | 0x0400 | 2;
         gridA[4 * 6 + 3] = 0x3000 | 640;
         int layoutA = layout(6, 5, gridA, primary, secondary);
@@ -337,6 +343,31 @@ public final class SyntheticRom {
         rom[wild + 20] = (byte) 0xFF;
         rom[wild + 21] = (byte) 0xFF;
         signature(GameProfile.SIG_WILD_ENCOUNTERS, wild);
+    }
+
+    /** Métatile de porte animée posé sur le warp de la carte A. */
+    public static final int DOOR_METATILE = 3;
+
+    /** Table des portes : 6 entrées (métatiles 3 à 8), la première sur le warp de A. */
+    private void buildDoorAnims() {
+        int table = alloc(7 * 12);
+        for (int k = 0; k < 6; k++) {
+            boolean big = k == 5;
+            int tiles = alloc(3 * (big ? 8 : 4) * 32);
+            for (int s = 0; s < 3; s++) {
+                for (int i = 0; i < (big ? 8 : 4); i++) {
+                    fillTile(tiles, s * (big ? 8 : 4) + i, s + 1); // étape s : couleur s+1
+                }
+            }
+            int pals = alloc(8);
+            int e = table + k * 12;
+            w16(e, DOOR_METATILE + k);
+            rom[e + 2] = 0;
+            rom[e + 3] = (byte) (big ? 1 : 0);
+            ptr(e + 4, tiles);
+            ptr(e + 8, pals);
+        }
+        // entrée nulle déjà à zéro : fin de table
     }
 
     private int layout(int w, int h, int[] grid, int primary, int secondary) {

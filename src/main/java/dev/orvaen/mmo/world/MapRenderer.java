@@ -52,6 +52,11 @@ public final class MapRenderer {
         return new Rendered(GbaGfx.toImage(below, w, h), GbaGfx.toImage(above, w, h), bBelow, bAbove);
     }
 
+    /** Palettes de la carte, telles que chargées en VRAM (portes animées, effets). */
+    public int[] palettes(MapLayout layout) {
+        return combinedPalettes(layout);
+    }
+
     /** Palettes 0..N du tileset primaire, puis N..12 du secondaire, comme dans la VRAM du jeu. */
     private int[] combinedPalettes(MapLayout layout) {
         int[] out = new int[16 * 16];
