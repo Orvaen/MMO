@@ -42,4 +42,9 @@ public interface Scene {
     }
 
     default void onEnter() {}
+
+    /** Le temps passé sous cette scène compte-t-il comme temps de jeu (carte de dresseur) ? */
+    default boolean countsPlayTime() {
+        return false;
+    }
 }

@@ -17,10 +17,10 @@ import java.awt.geom.Rectangle2D;
  */
 public final class StartMenuScene implements Scene {
 
-    private static final String[] ITEMS = {"Pokédex", "Personnage", "Cartes", "Sauvegarder", "Retour"};
+    private static final String[] ITEMS = {"Pokédex", "Carte de dresseur", "Personnage", "Cartes", "Sauvegarder", "Retour"};
     private static final String[] HINTS = {
-            "Espèces vues et capturées", "Modifier ton apparence", "Aller sur une autre carte",
-            "Enregistrer la partie", "Revenir au jeu"
+            "Espèces vues et capturées", "Ton profil, ton temps de jeu, tes badges", "Modifier ton apparence",
+            "Aller sur une autre carte", "Enregistrer la partie", "Revenir au jeu"
     };
     private static final double PANEL_W = 260, HEADER_H = 46, ITEM_H = 48;
 
@@ -88,9 +88,10 @@ public final class StartMenuScene implements Scene {
     private void choose(int i) {
         switch (i) {
             case 0 -> game.replace(new DexScene(game));
-            case 1 -> game.replace(new CharacterCreatorScene(game, true));
-            case 2 -> game.replace(new MapListScene(game, world));
-            case 3 -> {
+            case 1 -> game.replace(new TrainerCardScene(game));
+            case 2 -> game.replace(new CharacterCreatorScene(game, true));
+            case 3 -> game.replace(new MapListScene(game, world));
+            case 4 -> {
                 world.rememberPosition();
                 game.save.store();
                 game.pop();

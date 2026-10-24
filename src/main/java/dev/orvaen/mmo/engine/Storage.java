@@ -69,6 +69,27 @@ public final class Storage {
         }
     }
 
+    /** Position et taille mémorisées d'une fenêtre de l'interface (x, y, largeur, hauteur), ou {@code null}. */
+    public static double[] uiRect(String key) {
+        String v = read(CONFIG).getProperty("ui." + key);
+        if (v == null) return null;
+        try {
+            String[] p = v.split(",");
+            if (p.length != 4) return null;
+            double[] r = new double[4];
+            for (int i = 0; i < 4; i++) r[i] = Double.parseDouble(p[i].trim());
+            return r;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    public static void setUiRect(String key, double x, double y, double w, double h) {
+        Properties p = read(CONFIG);
+        p.setProperty("ui." + key, String.format(java.util.Locale.ROOT, "%.0f,%.0f,%.0f,%.0f", x, y, w, h));
+        write(CONFIG, p, "Configuration du moteur");
+    }
+
     /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
     public static RomCheck.Slot lastSlot() {
         String v = read(CONFIG).getProperty("rom.last", "");
@@ -91,6 +112,11 @@ public final class Storage {
         public int facing;
         public String name = "";
         public PlayerLook look;
+        /** Carte de dresseur : n° ID (tiré au hasard à la création), argent, temps de jeu, début de l'aventure. */
+        public int trainerId = -1;
+        public int money = 3000;
+        public long playFrames;
+        public String started = "";
         public final Set<Integer> seen = new TreeSet<>();
         public final Set<Integer> caught = new TreeSet<>();
 
@@ -110,6 +136,14 @@ public final class Storage {
             s.facing = intOf(p, "player.facing", 0);
             s.name = p.getProperty("player.name", "").trim();
             s.look = PlayerLook.decode(p.getProperty("player.look"));
+            s.trainerId = intOf(p, "player.id", -1);
+            s.money = intOf(p, "player.money", 3000);
+            try {
+                s.playFrames = Long.parseLong(p.getProperty("player.playtime", "0").trim()) * 60;
+            } catch (NumberFormatException e) {
+                s.playFrames = 0;
+            }
+            s.started = p.getProperty("player.started", "").trim();
             parseSet(p.getProperty("dex.seen", ""), s.seen);
             parseSet(p.getProperty("dex.caught", ""), s.caught);
             return s;
@@ -133,6 +167,12 @@ public final class Storage {
             p.setProperty("player.facing", String.valueOf(facing));
             p.setProperty("player.name", name);
             if (look != null) p.setProperty("player.look", look.encode());
+            if (trainerId < 0) trainerId = new java.util.Random().nextInt(65536);
+            if (started.isEmpty()) started = java.time.LocalDate.now().toString();
+            p.setProperty("player.id", String.valueOf(trainerId));
+            p.setProperty("player.money", String.valueOf(money));
+            p.setProperty("player.playtime", String.valueOf(playFrames / 60));
+            p.setProperty("player.started", started);
             p.setProperty("dex.seen", join(seen));
             p.setProperty("dex.caught", join(caught));
             write(file, p, "Sauvegarde");

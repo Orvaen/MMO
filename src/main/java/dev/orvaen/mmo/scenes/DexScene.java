@@ -3,6 +3,7 @@ package dev.orvaen.mmo.scenes;
 import dev.orvaen.mmo.data.Species;
 import dev.orvaen.mmo.engine.Game;
 import dev.orvaen.mmo.engine.HiUi;
+import dev.orvaen.mmo.engine.HiWindow;
 import dev.orvaen.mmo.engine.Input;
 import dev.orvaen.mmo.engine.Input.Button;
 import dev.orvaen.mmo.engine.Scene;
@@ -29,8 +30,7 @@ import java.util.Map;
  */
 public final class DexScene implements Scene {
 
-    private static final double PW = 900, PH = 610;
-    private static final double HEADER = 38, CELL_W = 66, CELL_H = 78, COLS = 9;
+    private static final double HEADER = HiWindow.HEADER, CELL_W = 66, CELL_H = 78;
     private static final String[] STAT_LABELS = {"PV", "Attaque", "Défense", "Atq. Spé.", "Déf. Spé.", "Vitesse"};
 
     /** Régions proposées, par plage de numéros nationaux. */
@@ -44,6 +44,7 @@ public final class DexScene implements Scene {
     };
 
     private final Game game;
+    private final HiWindow win;
     private final List<Species> all;
     private final List<Region> regions = new ArrayList<>();
     private final Map<Integer, BufferedImage> silhouettes = new HashMap<>();
@@ -58,6 +59,7 @@ public final class DexScene implements Scene {
 
     public DexScene(Game game) {
         this.game = game;
+        this.win = new HiWindow(game, "pokedex", 900, 610, 560, 400);
         this.all = game.data.species.nationalOrder();
         int maxNational = 0;
         for (Species s : all) maxNational = Math.max(maxNational, national(s));
@@ -81,43 +83,57 @@ public final class DexScene implements Scene {
     // ------------------------------------------------------------------ géométrie
 
     private double scale() {
-        double s = Math.min(game.viewWidth() / (PW + 40), game.viewHeight() / (PH + 40));
-        return Math.max(0.6, Math.min(1.7, s));
+        return win.scale();
     }
 
-    private double px() {
-        return (game.viewWidth() - PW * scale()) / 2;
+    private Rectangle2D rel(double dx, double dy, double w, double h) {
+        Rectangle2D b = win.bounds();
+        double sc = scale();
+        return new Rectangle2D.Double(b.getX() + dx * sc, b.getY() + dy * sc, w * sc, h * sc);
     }
 
-    private double py() {
-        return (game.viewHeight() - PH * scale()) / 2;
+    private Rectangle2D panel() { return win.bounds(); }
+    private Rectangle2D closeButton() { return win.closeButton(); }
+    private Rectangle2D dropdown() { return rel(14, HEADER + 12, 200, 30); }
+    private Rectangle2D dropdownItem(int i) { return rel(14, HEADER + 46 + i * 28, 200, 28); }
+
+    private Rectangle2D search() {
+        Rectangle2D r = rel(224, HEADER + 12, 250, 30);
+        double max = detail().getX() - 12 * scale() - r.getX();
+        return new Rectangle2D.Double(r.getX(), r.getY(), Math.max(60 * scale(), Math.min(r.getWidth(), max)), r.getHeight());
     }
 
-    private Rectangle2D rect(double x, double y, double w, double h) {
-        double s = scale();
-        return new Rectangle2D.Double(px() + x * s, py() + y * s, w * s, h * s);
+    private Rectangle2D detail() {
+        Rectangle2D b = win.bounds();
+        double sc = scale(), dw = 236 * sc;
+        return new Rectangle2D.Double(b.getMaxX() - 14 * sc - dw, b.getY() + (HEADER + 12) * sc, dw,
+                b.getHeight() - (HEADER + 12 + 52) * sc);
     }
 
-    private Rectangle2D panel() { return rect(0, 0, PW, PH); }
-    private Rectangle2D closeButton() { return rect(PW - 34, 8, 24, 22); }
-    private Rectangle2D dropdown() { return rect(14, HEADER + 12, 200, 30); }
-    private Rectangle2D dropdownItem(int i) { return rect(14, HEADER + 46 + i * 28, 200, 28); }
-    private Rectangle2D search() { return rect(224, HEADER + 12, 250, 30); }
-    private Rectangle2D grid() { return rect(14, HEADER + 54, COLS * CELL_W + 14, PH - HEADER - 54 - 52); }
-    private Rectangle2D detail() { return rect(14 + COLS * CELL_W + 26, HEADER + 12, PW - (14 + COLS * CELL_W + 26) - 14, PH - HEADER - 12 - 52); }
+    private Rectangle2D grid() {
+        Rectangle2D b = win.bounds();
+        double sc = scale(), gx = b.getX() + 14 * sc;
+        return new Rectangle2D.Double(gx, b.getY() + (HEADER + 54) * sc, detail().getX() - 12 * sc - gx,
+                b.getHeight() - (HEADER + 54 + 52) * sc);
+    }
+
+    /** Colonnes de la grille : autant qu'il en tient dans la largeur de la fenêtre. */
+    private int cols() {
+        return Math.max(2, (int) Math.floor((grid().getWidth() - 14 * scale()) / (CELL_W * scale())));
+    }
 
     private int visibleRows() {
         return (int) Math.floor(grid().getHeight() / (CELL_H * scale()));
     }
 
     private int rows() {
-        return (int) Math.ceil(shown.size() / COLS);
+        return (int) Math.ceil(shown.size() / (double) cols());
     }
 
     private Rectangle2D cell(int index) {
         double s = scale();
         Rectangle2D g = grid();
-        int col = index % (int) COLS, row = index / (int) COLS;
+        int col = index % cols(), row = index / cols();
         return new Rectangle2D.Double(g.getX() + col * CELL_W * s, g.getY() + (row - scroll) * CELL_H * s,
                 CELL_W * s, CELL_H * s);
     }
@@ -172,6 +188,7 @@ public final class DexScene implements Scene {
     @Override
     public void update(Input in) {
         frame++;
+        if (win.update(in)) return;
         int mx = in.mouseX(), my = in.mouseY();
 
         if (searchFocus) {
@@ -196,7 +213,7 @@ public final class DexScene implements Scene {
 
         if (in.mousePressed()) {
             if (closeButton().contains(mx, my)) {
-                game.pop();
+                close();
                 return;
             }
             if (dropdownOpen) {
@@ -218,12 +235,9 @@ public final class DexScene implements Scene {
             }
             searchFocus = search().contains(mx, my);
             if (grid().contains(mx, my)) {
-                for (int i = firstVisible(); i < Math.min(shown.size(), firstVisible() + (visibleRows() + 1) * (int) COLS); i++) {
+                for (int i = firstVisible(); i < Math.min(shown.size(), firstVisible() + (visibleRows() + 1) * cols()); i++) {
                     if (cell(i).contains(mx, my)) selected = i;
                 }
-            } else if (!panel().contains(mx, my)) {
-                game.pop(); // clic en dehors : on ferme, comme une fenêtre de PokeMMO
-                return;
             }
         }
         if (in.wheel() != 0) {
@@ -236,11 +250,11 @@ public final class DexScene implements Scene {
         boolean keys = !searchFocus || in.typed().isEmpty();
         if (!searchFocus && (in.pressed(Button.B) || in.pressed(Button.START))) {
             if (dropdownOpen) dropdownOpen = false;
-            else game.pop();
+            else close();
             return;
         }
         if (shown.isEmpty()) return;
-        int cols = (int) COLS;
+        int cols = cols();
         int before = selected;
         if (keys) {
             if (in.repeat(Button.RIGHT)) selected = Math.min(shown.size() - 1, selected + 1);
@@ -257,8 +271,13 @@ public final class DexScene implements Scene {
         }
     }
 
+    private void close() {
+        win.close();
+        game.pop();
+    }
+
     private int firstVisible() {
-        return (int) Math.floor(scroll) * (int) COLS;
+        return (int) Math.floor(scroll) * cols();
     }
 
     // ------------------------------------------------------------------ rendu
@@ -277,33 +296,13 @@ public final class DexScene implements Scene {
         g.fillRect(0, 0, w, h);
 
         Rectangle2D p = panel();
-        double appear = Math.min(1, frame / 6.0);
-        g.translate(0, (1 - appear) * 12 * s);
-        for (int i = 6; i >= 1; i--) {
-            HiUi.fill(g, new Color(0, 0, 0, 22), p.getX() - i * 2, p.getY() - i * 2 + 5, p.getWidth() + i * 4, p.getHeight() + i * 4, 14);
-        }
-        HiUi.fill(g, HiUi.PANEL, p.getX(), p.getY(), p.getWidth(), p.getHeight(), 6 * s);
-        HiUi.fill(g, HiUi.HEADER, p.getX(), p.getY(), p.getWidth(), HEADER * s, 6 * s);
-        g.setColor(HiUi.HEADER);
-        g.fill(new Rectangle2D.Double(p.getX(), p.getY() + (HEADER - 8) * s, p.getWidth(), 8 * s));
-        HiUi.stroke(g, HiUi.PANEL_BORDER, p.getX(), p.getY(), p.getWidth(), p.getHeight(), 6 * s, 1f);
-
-        g.setFont(HiUi.font((float) (15 * s), true));
-        g.setColor(Color.WHITE);
-        g.drawString("Pokédex", (float) (p.getX() + 14 * s), (float) (p.getY() + 25 * s));
-        Rectangle2D c = closeButton();
-        boolean overClose = c.contains(game.input().mouseX(), game.input().mouseY());
-        if (overClose) HiUi.fill(g, new Color(0x3A2333), c.getX(), c.getY(), c.getWidth(), c.getHeight(), 4 * s);
-        g.setColor(HiUi.CLOSE);
-        g.setFont(HiUi.font((float) (17 * s), true));
-        HiUi.centered(g, "×", c.getX(), c.getY() - 1 * s, c.getWidth(), c.getHeight());
+        win.paintFrame(g, "Pokédex");
 
         drawToolbar(g, s);
         drawGrid(g, s);
         drawDetail(g, s);
         drawFooter(g, s, p);
         if (dropdownOpen) drawDropdown(g, s);
-        g.translate(0, -(1 - appear) * 12 * s);
     }
 
     private void drawToolbar(Graphics2D g, double s) {
@@ -336,7 +335,7 @@ public final class DexScene implements Scene {
         Shape clip = g.getClip();
         g.clip(new Rectangle2D.Double(area.getX(), area.getY(), area.getWidth(), area.getHeight()));
         int mx = game.input().mouseX(), my = game.input().mouseY();
-        int first = firstVisible(), last = Math.min(shown.size(), first + (visibleRows() + 2) * (int) COLS);
+        int first = firstVisible(), last = Math.min(shown.size(), first + (visibleRows() + 2) * cols());
         for (int i = first; i < last; i++) {
             Species sp = shown.get(i);
             Rectangle2D r = cell(i);
@@ -499,7 +498,8 @@ public final class DexScene implements Scene {
         g.drawString("Capturés : " + caught + " / " + total, (float) (p.getX() + 190 * s), ty);
         g.setColor(HiUi.MUTED);
         String hint = "Flèches : parcourir · Molette : défiler · Échap : fermer";
-        g.drawString(hint, (float) (p.getMaxX() - 18 * s - g.getFontMetrics().stringWidth(hint)), ty);
+        double hx = p.getMaxX() - 18 * s - g.getFontMetrics().stringWidth(hint);
+        if (hx > p.getX() + 380 * s) g.drawString(hint, (float) hx, ty);
     }
 
     private void drawDropdown(Graphics2D g, double s) {

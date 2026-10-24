@@ -84,6 +84,15 @@ public final class Game {
         return input;
     }
 
+    private int cursorType = java.awt.Cursor.DEFAULT_CURSOR;
+
+    /** Curseur de la souris (déplacer / redimensionner une fenêtre…) ; sans fenêtre : ignoré. */
+    public void setCursor(int type) {
+        if (type == cursorType) return;
+        cursorType = type;
+        if (canvas != null) canvas.setCursor(java.awt.Cursor.getPredefinedCursor(type));
+    }
+
     public Scene top() {
         return scenes.peek();
     }
@@ -328,6 +337,12 @@ public final class Game {
         if (input.zoomSteps() != 0) adjustZoom(input.zoomSteps());
         if (input.fpsToggled()) showFps = !showFps;
         sizeScreen();
+        for (Scene sc : scenes) {
+            if (sc.countsPlayTime()) {
+                save.playFrames++;
+                break;
+            }
+        }
         if (fadeDir != 0) {
             fade += fadeDir * 0.1f;
             if (fade >= 1f) {

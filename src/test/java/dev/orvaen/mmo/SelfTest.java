@@ -76,6 +76,8 @@ public final class SelfTest {
         test("Panneau : lisible de face uniquement", SelfTest::signReads);
         test("Tuiles animées : les fleurs changent de frame", SelfTest::tileAnimation);
         test("Pokédex : fenêtre, recherche, sélection, fermeture", SelfTest::pokedexWindow);
+        test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
+        test("Carte de dresseur : n° ID, temps de jeu, ouverture depuis le menu", SelfTest::trainerCard);
         test("Course : 10 frames par case (plus posée que la GBA)", SelfTest::runSpeed);
         test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
@@ -113,6 +115,12 @@ public final class SelfTest {
 
     private static void check(boolean cond, String message) {
         if (!cond) throw new AssertionError(message);
+    }
+
+    private static void eq(double expected, double actual, double tolerance, String what) {
+        if (Math.abs(expected - actual) > tolerance) {
+            throw new AssertionError(what + " : attendu " + expected + ", obtenu " + actual);
+        }
     }
 
     private static void eq(Object expected, Object actual, String what) {
@@ -510,6 +518,77 @@ public final class SelfTest {
         check(g.top() instanceof OverworldScene, "× ferme le Pokédex");
     }
 
+    private static void drag(Game g, java.awt.Point from, int dx, int dy) {
+        g.input().move(from.x, from.y);
+        g.simulateFrame();
+        g.input().setMouseButton(true);
+        g.simulateFrame();
+        for (int i = 1; i <= 4; i++) {
+            g.input().move(from.x + dx * i / 4, from.y + dy * i / 4);
+            g.simulateFrame();
+        }
+        g.input().setMouseButton(false);
+        g.simulateFrame();
+    }
+
+    private static void movableWindow() {
+        try {
+            Files.deleteIfExists(Storage.DIR.resolve("config.properties"));
+        } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+        }
+        Game g = game();
+        g.renderWindow(1600, 900);
+        DexScene dex = new DexScene(g);
+        g.push(dex);
+        g.simulateFrame();
+        java.awt.Point close = dex.anchor("close");
+        java.awt.Point title = new java.awt.Point(close.x - 300, close.y);
+        drag(g, title, -120, 40);
+        java.awt.Point moved = dex.anchor("close");
+        eq(close.x - 120, moved.x, "déplacée de 120 px vers la gauche");
+        eq(close.y + 40, moved.y, "et de 40 px vers le bas");
+        check(g.top() == dex, "tirer la barre de titre ne ferme pas la fenêtre");
+        // coin bas-droit : on agrandit de 100 px en largeur
+        java.awt.Point cell0 = dex.anchor("cell:0");
+        double[] rect = Storage.uiRect("pokedex");
+        check(rect != null, "place mémorisée");
+        java.awt.Point corner = new java.awt.Point((int) (rect[0] + rect[2] - 3), (int) (rect[1] + rect[3] - 3));
+        drag(g, corner, -200, -100);
+        double[] after = Storage.uiRect("pokedex");
+        eq(rect[2] - 200, after[2], 0.6, "largeur réduite");
+        eq(rect[3] - 100, after[3], 0.6, "hauteur réduite");
+        eq(cell0, dex.anchor("cell:0"), "le contenu suit la fenêtre (coin haut-gauche inchangé)");
+        // réouverture : même place
+        click(g, dex.anchor("close"));
+        DexScene again = new DexScene(g);
+        g.push(again);
+        g.simulateFrame();
+        eq(dex.anchor("cell:0"), again.anchor("cell:0"), "rouverte au même endroit");
+    }
+
+    private static void trainerCard() {
+        Game g = game();
+        g.save.name = "Rayan";
+        g.save.look = PlayerLook.defaults();
+        OverworldScene w = world(g);
+        for (int i = 0; i < 120; i++) g.simulateFrame();
+        check(g.save.playFrames >= 120, "le temps de jeu avance dans le monde");
+        g.push(new StartMenuScene(g, w));
+        tap(g, Button.DOWN);
+        tap(g, Button.A);
+        check(g.top() instanceof dev.orvaen.mmo.scenes.TrainerCardScene, "le menu ouvre la carte de dresseur");
+        check(g.save.trainerId >= 0 && g.save.trainerId < 65536, "n° ID attribué : " + g.save.trainerId);
+        check(!g.save.started.isEmpty(), "date de début enregistrée");
+        BufferedImage img = g.renderWindow(1280, 720);
+        check(img.getRGB(640, 360) != 0, "carte dessinée");
+        int id = g.save.trainerId;
+        var reloaded = Storage.Save.load("BPRE");
+        eq(id, reloaded.trainerId, "n° ID sauvegardé");
+        tap(g, Button.B);
+        check(g.top() == w, "B ferme la carte");
+    }
+
     private static void tileAnimation() {
         GameData d = data();
         check(d.tileAnims.anims().stream().anyMatch(a -> a.name().equals("Fleurs")), "animation des fleurs trouvée");
@@ -813,6 +892,7 @@ public final class SelfTest {
         g.save.look = PlayerLook.defaults();
         OverworldScene w = world(g);
         g.push(new StartMenuScene(g, w));
+        tap(g, Button.DOWN);                      // carte de dresseur
         tap(g, Button.DOWN);                      // PERSO
         tap(g, Button.A);
         check(g.top() instanceof CharacterCreatorScene, "le menu ouvre la modification");

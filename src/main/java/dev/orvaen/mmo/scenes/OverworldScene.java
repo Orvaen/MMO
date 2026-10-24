@@ -127,6 +127,11 @@ public final class OverworldScene implements Scene {
     }
 
     @Override
+    public boolean countsPlayTime() {
+        return true;
+    }
+
+    @Override
     public void update(Input in) {
         animCounter++;
         if (popupTimer > 0) popupTimer--;

@@ -128,9 +128,12 @@ sur un avatar dessiné qui reprend les mêmes couleurs.
   bord de l'eau en plus sur Émeraude), au rythme du jeu d'origine
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
-- **Pokédex** façon PokeMMO : fenêtre par-dessus le jeu, grille dans l'ordre national (silhouettes
+- **Pokédex** façon PokeMMO : fenêtre par-dessus le jeu, déplaçable (barre de titre) et redimensionnable
+  (bords, coin), dont la place est mémorisée, grille dans l'ordre national (silhouettes
   pour les espèces jamais vues), choix National / Kanto / Johto / Hoenn, recherche par nom ou n°,
   fiche (types, statistiques), compteurs vus / capturés
+- **Carte de dresseur** (menu X) : portrait avec ta tenue, n° ID, argent, Pokédex, temps de jeu,
+  date de début de l'aventure, badges ; fenêtre déplaçable et redimensionnable elle aussi
 - **Personnage** : sprites du joueur lus dans la ROM et teints pièce par pièce (gabarit, peau, cheveux,
   couvre-chef, haut, bas, chaussures, sac), à la création et via le menu
 - Sauvegarde locale par jeu dans `~/.orvaen-mmo/save-<code>.properties`
