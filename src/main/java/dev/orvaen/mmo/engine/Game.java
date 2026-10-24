@@ -97,23 +97,40 @@ public final class Game {
 
     private final java.util.List<UiWindow> windows = new java.util.ArrayList<>(); // la dernière est devant
 
-    /** Ouvre une fenêtre (ou la ferme si elle est déjà ouverte, comme un raccourci de PokeMMO). */
+    /**
+     * Raccourci d'une fenêtre (touche ou icône), comme dans PokeMMO : l'ouvre si elle est fermée, la ramène
+     * devant si elle est cachée derrière une autre, la ferme si elle est déjà devant.
+     */
     public void toggleWindow(UiWindow w) {
-        if (windowOpen(w.id())) {
-            closeWindows();
+        for (UiWindow o : windows) {
+            if (!o.id().equals(w.id())) continue;
+            if (o == windows.get(windows.size() - 1)) {
+                o.frame().close();
+                windows.remove(o);
+            } else {
+                windows.remove(o);
+                windows.add(o);
+            }
             return;
         }
         openWindow(w);
     }
 
-    /** Ouvre une fenêtre : une seule à la fois, celle d'avant se ferme. */
+    /** Ouvre une fenêtre devant les autres (plusieurs peuvent rester ouvertes ; une seule par sorte). */
     public void openWindow(UiWindow w) {
-        for (UiWindow o : windows) if (o != w) o.frame().close();
-        windows.clear();
+        boolean known = windows.remove(w);
+        for (java.util.Iterator<UiWindow> it = windows.iterator(); it.hasNext(); ) {
+            UiWindow o = it.next();
+            if (o.id().equals(w.id())) {
+                o.frame().close();
+                it.remove();
+            }
+        }
+        if (!known) w.frame().cascade(windows.size());
         windows.add(w);
     }
 
-    /** Ferme la fenêtre ouverte (s'il y en a une). */
+    /** Ferme toutes les fenêtres. */
     public void closeWindows() {
         for (UiWindow o : windows) o.frame().close();
         windows.clear();

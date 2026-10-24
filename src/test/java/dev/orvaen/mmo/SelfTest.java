@@ -546,15 +546,22 @@ public final class SelfTest {
         int x0 = w.playerX();
         hold(g, Button.RIGHT, 20);
         check(w.playerX() != x0, "on marche avec le Pokédex ouvert");
-        // Une seule fenêtre à la fois : ouvrir la carte de dresseur ferme le Pokédex
+        // Plusieurs fenêtres à la fois
         g.openWindow(new dev.orvaen.mmo.scenes.TrainerCardWindow(g));
         g.simulateFrame();
-        eq(1, g.windows().size(), "une seule fenêtre ouverte");
-        check(g.windowOpen("carte-dresseur") && !g.windowOpen("pokedex"), "la carte remplace le Pokédex");
+        eq(2, g.windows().size(), "Pokédex et carte de dresseur ouverts ensemble");
+        // raccourci d'une fenêtre cachée derrière : elle repasse devant (sans se fermer)
+        g.input().type("p");
+        g.simulateFrame();
+        eq("pokedex", g.windows().get(g.windows().size() - 1).id(), "P : le Pokédex repasse devant");
+        eq(2, g.windows().size(), "… et rien ne se ferme");
         g.renderWindow(1280, 720);
         g.input().type("\u001b");
         g.simulateFrame();
-        check(g.windows().isEmpty(), "Échap ferme la fenêtre");
+        eq(1, g.windows().size(), "Échap ferme la fenêtre de devant");
+        g.input().type("\u001b");
+        g.simulateFrame();
+        check(g.windows().isEmpty(), "Échap ferme la suivante");
         g.input().type("p");
         g.simulateFrame();
         check(g.windowOpen("pokedex"), "raccourci P : ouvre le Pokédex");
@@ -1369,7 +1376,7 @@ public final class SelfTest {
         check(g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "raccourci en icône : réglages");
         b = dev.orvaen.mmo.scenes.PartyBarProbe.shortcut(1, 1280, 720);
         click(g, new java.awt.Point((int) b.getCenterX(), (int) b.getCenterY()));
-        check(g.windowOpen("pokedex") && g.windows().size() == 1, "raccourci Pokédex : remplace les réglages");
+        check(g.windowOpen("pokedex") && g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "raccourci Pokédex : s'ouvre à côté des réglages");
         Storage.setMusicVolume(100);
         Storage.setEffectsVolume(100);
     }

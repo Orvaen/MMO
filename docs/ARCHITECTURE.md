@@ -74,8 +74,9 @@ Une scène a trois méthodes principales :
 | `renderHiRes(Graphics2D g, w, h)` | dessin en haute résolution par-dessus (texte, interface) |
 
 Les **fenêtres** (Pokédex, carte de dresseur, résumé, réglages) ne sont pas des scènes : ce sont des
-`UiWindow` déplaçables qui restent ouvertes pendant qu'on joue (`game.toggleWindow(...)`). **Une seule à la
-fois** : en ouvrir une ferme l'autre. Une fenêtre peut garder des touches pour elle (`usesKeys()`, par
+`UiWindow` déplaçables qui restent ouvertes pendant qu'on joue (`game.toggleWindow(...)`). Plusieurs peuvent
+être ouvertes (une seule de chaque sorte) ; le raccourci d'une fenêtre cachée la ramène devant, celui de la
+fenêtre de devant la ferme. Une fenêtre peut garder des touches pour elle (`usesKeys()`, par
 exemple les flèches du résumé) : le joueur ne marche pas pendant qu'on navigue dedans.
 
 ---
