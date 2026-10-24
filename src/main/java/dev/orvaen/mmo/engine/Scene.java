@@ -24,6 +24,18 @@ public interface Scene {
         return false;
     }
 
+    /**
+     * Fraction de pixel virtuel (0 à 1) dont la caméra a avancé au-delà de ce qui est dessiné
+     * dans l'écran virtuel : le moteur décale l'image d'autant de pixels réels (défilement fluide).
+     */
+    default double subpixelX() {
+        return 0;
+    }
+
+    default double subpixelY() {
+        return 0;
+    }
+
     /** Les scènes en dessous restent-elles dessinées (menus en surimpression) ? */
     default boolean isOverlay() {
         return false;

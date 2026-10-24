@@ -66,6 +66,7 @@ public final class SelfTest {
         test("Rencontres : table d'herbe et probabilités", SelfTest::wild);
         test("Moteur : marche, liaison vers la carte voisine", SelfTest::walkThroughConnection);
         test("Moteur : warp en marchant sur une porte", SelfTest::warp);
+        test("Moteur : marche continue sans arrêt entre deux cases", SelfTest::continuousWalk);
         test("Moteur : collision avec un obstacle", SelfTest::collision);
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
         test("Moteur : rendu d'une frame et du Pokédex", SelfTest::frames);
@@ -308,6 +309,23 @@ public final class SelfTest {
         eq("ROUTE TEST", w.currentMap().name, "passage par la liaison sud");
         eq(0, w.playerX(), "x dans la carte voisine (décalage appliqué)");
         eq(2, w.playerY(), "arrêt au bord bas de la carte B");
+    }
+
+    private static void continuousWalk() {
+        Game g = game();
+        OverworldScene w = world(g);
+        g.input().set(Button.DOWN, true);
+        g.simulateFrame();                      // départ : (1,2) → (1,3)
+        check(w.isMoving(), "le pas démarre tout de suite");
+        for (int f = 0; f < 31; f++) {
+            g.simulateFrame();
+            check(w.isMoving(), "arrêt d'une frame entre deux cases (frame " + f + ")");
+            double sx = w.subpixelX(), sy = w.subpixelY();
+            check(sx >= 0 && sx < 1 && sy >= 0 && sy < 1, "fraction de caméra entre 0 et 1");
+        }
+        g.input().set(Button.DOWN, false);
+        for (int f = 0; f < 20; f++) g.simulateFrame();
+        eq(4, w.playerY(), "deux cases en 32 frames, comme sur GBA");
     }
 
     private static void warp() {

@@ -211,6 +211,12 @@ public final class OverworldScene implements Scene {
         px += facing.dx * tiles;
         py += facing.dy * tiles;
         onStep();
+        // Direction toujours maintenue : on enchaîne le pas suivant dans la même frame,
+        // sans image d'arrêt entre deux cases (c'est ce qui donnait l'effet saccadé).
+        if (!moving && !game.isFading() && game.top() == this && autoStep == null) {
+            Direction dir = Direction.held(in);
+            if (dir == facing) tryMove(dir, in.down(Button.B));
+        }
     }
 
     private void onStep() {
@@ -355,6 +361,7 @@ public final class OverworldScene implements Scene {
         return map;
     }
 
+    public boolean isMoving() { return moving; }
     public int playerX() { return px; }
     public int playerY() { return py; }
     public Direction facing() { return facing; }
@@ -408,15 +415,47 @@ public final class OverworldScene implements Scene {
 
     // ------------------------------------------------------------------ rendu
 
+    /** Position exacte du joueur en pixels du monde (interpolée entre deux pas de logique). */
+    private double exactX() {
+        return px * T + facing.dx * exactProgress();
+    }
+
+    private double exactY() {
+        return py * T + facing.dy * exactProgress();
+    }
+
+    private double exactProgress() {
+        if (!moving) return 0;
+        return Math.min(distance, progress + speed * game.interpolation());
+    }
+
+    /** Coin haut-gauche de la caméra (pixels du monde, non arrondi). */
+    private double camExactX() {
+        return exactX() - (game.screenWidth() / 2 - T / 2);
+    }
+
+    private double camExactY() {
+        return exactY() - (game.screenHeight() / 2 - T / 2);
+    }
+
+    @Override
+    public double subpixelX() {
+        double c = camExactX();
+        return c - Math.floor(c);
+    }
+
+    @Override
+    public double subpixelY() {
+        double c = camExactY();
+        return c - Math.floor(c);
+    }
+
+    /** Écran virtuel : bordures et sols (le joueur et les toits sont dessinés en haute résolution). */
     @Override
     public void render(Graphics2D g) {
-        int offset = moving ? progress : 0;
-        int playerPx = px * T + facing.dx * offset;
-        int playerPy = py * T + facing.dy * offset;
         int sw = game.screenWidth(), sh = game.screenHeight();
-        int screenX = sw / 2 - T / 2, screenY = sh / 2 - T / 2;
-        int camX = playerPx - screenX;
-        int camY = playerPy - screenY;
+        int camX = (int) Math.floor(camExactX());
+        int camY = (int) Math.floor(camExactY());
 
         MapRenderer.Rendered current = render(map);
 
@@ -445,55 +484,77 @@ public final class OverworldScene implements Scene {
             g.drawImage(render(t).below(), o[0] * T - camX, o[1] * T - camY, null);
         }
         g.drawImage(current.below(), -camX, -camY, null);
+    }
 
-        // 3. Joueur
+    /** Fenêtre réelle : joueur, herbe devant les jambes, toits et cimes, puis l'interface. */
+    @Override
+    public void renderHiRes(Graphics2D g, int w, int h) {
+        int zoom = game.blitScale();
+        double camX = camExactX(), camY = camExactY();
+        // Origine du monde dans la fenêtre, alignée exactement sur l'image du sol
+        double originX = game.blitX() - Math.floor(camX) * zoom;
+        double originY = game.blitY() - Math.floor(camY) * zoom;
+
+        Graphics2D world = (Graphics2D) g.create();
+        world.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        world.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
+        world.translate(originX, originY);
+        world.scale(zoom, zoom);
+
+        // Joueur, à sa position exacte (fraction de pixel virtuel comprise)
+        MapRenderer.Rendered current = render(map);
+        double ex = exactX(), ey = exactY();
         int hop = 0;
-        if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * progress / distance) * 10);
-        int step = 0;
-        if (moving && distance == T && progress > 2 && progress < 14) step = stepLeftFoot ? 1 : 2;
-        int sx = screenX, sy = screenY;
-        avatar.drawOverworld(g, sx, sy, facing, step, hop);
-
-        // Herbe haute : le bas de la case repasse devant les jambes
+        if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * 10);
+        // Comme sur GBA : pied en avant pendant la 1re moitié du pas, position de repos pendant la 2de
+        int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
+        Graphics2D p = (Graphics2D) world.create();
+        p.translate(ex, ey);
+        avatar.drawOverworld(p, 0, 0, facing, step, hop);
         if (!moving && map.isLandEncounterAt(px, py) && map.behaviorAt(px, py) == 0x02) {
             BufferedImage below = current.below();
             int gx = px * T, gy = py * T + 9;
             if (gx >= 0 && gy >= 0 && gx + T <= below.getWidth() && gy + 7 <= below.getHeight()) {
-                g.drawImage(below.getSubimage(gx, gy, T, 7), sx, sy + 9, null);
+                p.drawImage(below.getSubimage(gx, gy, T, 7), 0, 9, null);
             }
         }
+        p.dispose();
 
-        // 4. Calque supérieur (cimes, toits)
+        // Calque supérieur (cimes, toits) des cartes liées puis de la carte courante
         for (Connection c : map.connections) {
             GameMap t = loadOrNull(c.targetGroup(), c.targetNum());
             if (t == null) continue;
             int[] o = originOf(c, t);
-            g.drawImage(render(t).above(), o[0] * T - camX, o[1] * T - camY, null);
+            world.drawImage(render(t).above(), o[0] * T, o[1] * T, null);
         }
-        g.drawImage(current.above(), -camX, -camY, null);
+        world.drawImage(current.above(), 0, 0, null);
+        world.dispose();
 
-        drawHud(g);
+        drawHud(g, w, h);
     }
 
-    private void drawHud(Graphics2D g) {
+    /** Nom de la zone (en haut à gauche) et messages, en panneaux nets façon PokeMMO. */
+    private void drawHud(Graphics2D g, int w, int h) {
+        double s = Math.max(0.8, Math.min(1.6, h / 720.0));
         if (popupTimer > 0) {
-            int slide = Math.min(0, Math.min(POPUP_FRAMES - popupTimer, popupTimer) * 2 - 24);
-            g.setFont(Ui.FONT);
-            int w = Math.max(80, g.getFontMetrics().stringWidth(map.name) + 20);
-            Ui.box(g, 4, 2 + slide, w, 22);
-            Ui.text(g, map.name, 14, 17 + slide);
+            double t = Math.min(POPUP_FRAMES - popupTimer, popupTimer) / 12.0;
+            double slide = (Math.min(1, t) - 1) * 60 * s;
+            g.setFont(dev.orvaen.mmo.engine.HiUi.font((float) (15 * s), true));
+            double tw = g.getFontMetrics().stringWidth(map.name);
+            double bw = tw + 44 * s, bh = 34 * s, x = 14 * s, y = 14 * s + slide;
+            dev.orvaen.mmo.engine.HiUi.fill(g, new java.awt.Color(20, 22, 34, 225), x, y, bw, bh, 6 * s);
+            dev.orvaen.mmo.engine.HiUi.fill(g, dev.orvaen.mmo.engine.HiUi.ACCENT, x, y, 4 * s, bh, 2 * s);
+            g.setColor(java.awt.Color.WHITE);
+            dev.orvaen.mmo.engine.HiUi.centered(g, map.name, x + 8 * s, y, bw - 8 * s, bh);
         }
         if (messageTimer > 0 && message != null) {
-            g.setFont(Ui.FONT);
-            int sw = game.screenWidth(), sh = game.screenHeight();
-            int bw = Math.min(sw - 8, 320), bx = (sw - bw) / 2;
-            Ui.box(g, bx, sh - 44, bw, 40);
-            int y = sh - 28;
-            for (String line : Ui.wrap(g, message, bw - 20)) {
-                Ui.text(g, line, bx + 10, y);
-                y += 13;
-                if (y > sh - 6) break;
-            }
+            g.setFont(dev.orvaen.mmo.engine.HiUi.font((float) (15 * s), false));
+            double bw = Math.min(w - 40, 620 * s), bh = 56 * s, x = (w - bw) / 2, y = h - bh - 24 * s;
+            dev.orvaen.mmo.engine.HiUi.fill(g, new java.awt.Color(20, 22, 34, 235), x, y, bw, bh, 6 * s);
+            dev.orvaen.mmo.engine.HiUi.stroke(g, dev.orvaen.mmo.engine.HiUi.PANEL_BORDER, x, y, bw, bh, 6 * s, 1f);
+            g.setColor(dev.orvaen.mmo.engine.HiUi.TEXT);
+            dev.orvaen.mmo.engine.HiUi.centered(g, message, x + 12 * s, y, bw - 24 * s, bh);
         }
     }
 }

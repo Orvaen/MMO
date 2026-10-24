@@ -119,6 +119,21 @@ public final class Game {
         Storage.setZoom(z);
     }
 
+    private int blitX, blitY, blitScale = 1;
+
+    /** Position et échelle de l'écran virtuel dans la fenêtre lors du dernier rendu (pour l'interface). */
+    public int blitX() {
+        return blitX;
+    }
+
+    public int blitY() {
+        return blitY;
+    }
+
+    public int blitScale() {
+        return blitScale;
+    }
+
     /** Taille de l'écran virtuel où dessinent les scènes (240x160, ou plus grand pour le monde). */
     public int screenWidth() {
         return screen.getWidth();
@@ -187,35 +202,89 @@ public final class Game {
         canvas.createBufferStrategy(2);
         canvas.requestFocus();
         push(first.get());
+        preciseTimer();
 
-        long next = System.nanoTime();
+        // La logique avance à 60 pas/s (comme la GBA) ; l'affichage suit la fréquence de l'écran
+        // (60, 144 Hz…) avec une position interpolée entre deux pas : pas de saccade.
+        int refresh = displayRefreshRate();
+        long frameNanos = 1_000_000_000L / refresh;
+        long nextTick = System.nanoTime(), nextFrame = nextTick, lastTick = nextTick;
         while (running) {
             long now = System.nanoTime();
-            if (now < next) {
-                long sleep = (next - now) / 1_000_000;
-                if (sleep > 1) {
-                    try {
-                        Thread.sleep(sleep - 1);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                } else {
-                    Thread.onSpinWait();
-                }
-                continue;
-            }
-            int steps = 0;
-            while (now >= next && steps++ < 5) {
+            int ticks = 0;
+            while (now >= nextTick && ticks++ < 5) {
                 tick();
-                next += FRAME_NANOS;
+                lastTick = nextTick;
+                nextTick += FRAME_NANOS;
             }
-            if (now - next > FRAME_NANOS * 10) next = now; // rattrapage après une pause
-            draw();
+            if (now - nextTick > FRAME_NANOS * 10) { // rattrapage après une pause (fenêtre déplacée…)
+                nextTick = now + FRAME_NANOS;
+                lastTick = now;
+            }
+            if (now >= nextFrame) {
+                interpolation = Math.max(0, Math.min(1, (now - lastTick) / (double) FRAME_NANOS));
+                draw();
+                nextFrame += frameNanos;
+                if (now - nextFrame > frameNanos * 4) nextFrame = now + frameNanos;
+            }
+            waitUntil(Math.min(nextTick, nextFrame));
         }
         save.store();
         frame.dispose();
         System.exit(0);
+    }
+
+    /** Fraction (0 à 1) écoulée depuis le dernier pas de logique, pour lisser les mouvements à l'écran. */
+    public double interpolation() {
+        return interpolation;
+    }
+
+    private double interpolation;
+
+    /** Attente précise : on dort tant qu'il reste du temps, puis on attend activement la dernière milliseconde. */
+    private static void waitUntil(long deadline) {
+        while (true) {
+            long left = deadline - System.nanoTime();
+            if (left <= 0) return;
+            if (left > 2_000_000) {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            } else {
+                Thread.onSpinWait();
+            }
+        }
+    }
+
+    /**
+     * Sous Windows, la minuterie système n'a qu'une précision d'environ 15 ms : Thread.sleep(1) peut
+     * durer 15 ms et faire sauter des images. Un fil qui dort indéfiniment force la JVM à demander
+     * la minuterie à 1 ms pendant toute la partie (astuce classique de la JVM sous Windows).
+     */
+    private static void preciseTimer() {
+        Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(Long.MAX_VALUE);
+            } catch (InterruptedException ignored) {
+                // fin du jeu
+            }
+        }, "minuterie-precise");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** Fréquence de l'écran où se trouve la fenêtre (60 par défaut, 240 au plus). */
+    private int displayRefreshRate() {
+        try {
+            int r = frame.getGraphicsConfiguration().getDevice().getDisplayMode().getRefreshRate();
+            if (r >= 30) return Math.min(240, r);
+        } catch (RuntimeException ignored) {
+            // inconnue : 60
+        }
+        return 60;
     }
 
     private void tick() {
@@ -254,6 +323,7 @@ public final class Game {
             out.dispose();
         }
         bs.show();
+        java.awt.Toolkit.getDefaultToolkit().sync();
     }
 
     /** Image du jeu agrandie (pixels nets), puis interface haute résolution, puis fondu. */
@@ -262,8 +332,14 @@ public final class Game {
         out.fillRect(0, 0, cw, ch);
         int scale = screenFills ? zoom() : Math.max(1, Math.min(cw / WIDTH, ch / HEIGHT));
         int w = screen.getWidth() * scale, h = screen.getHeight() * scale;
+        // Défilement au pixel de l'écran près : la scène indique la fraction de pixel virtuel de sa caméra
+        Scene base = visibleScenes().isEmpty() ? null : visibleScenes().get(0);
+        double fx = base != null && screenFills ? base.subpixelX() : 0, fy = base != null && screenFills ? base.subpixelY() : 0;
+        blitX = (int) Math.round((cw - w) / 2.0 - fx * scale);
+        blitY = (int) Math.round((ch - h) / 2.0 - fy * scale);
+        blitScale = scale;
         out.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        out.drawImage(screen, (cw - w) / 2, (ch - h) / 2, w, h, null);
+        out.drawImage(screen, blitX, blitY, w, h, null);
 
         for (Scene s : visibleScenes()) {
             Graphics2D g = (Graphics2D) out.create();
@@ -295,8 +371,8 @@ public final class Game {
         int w = WIDTH, h = HEIGHT;
         if (screenFills) {
             int z = zoom();
-            w = Math.max(WIDTH, (viewWidth + z - 1) / z);
-            h = Math.max(HEIGHT, (viewHeight + z - 1) / z);
+            w = Math.max(WIDTH, (viewWidth + z - 1) / z + 2);   // +2 : marge pour le défilement au sous-pixel
+            h = Math.max(HEIGHT, (viewHeight + z - 1) / z + 2);
         }
         if (screen.getWidth() != w || screen.getHeight() != h) {
             screen = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
