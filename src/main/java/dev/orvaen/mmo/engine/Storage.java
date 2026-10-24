@@ -1,6 +1,7 @@
 package dev.orvaen.mmo.engine;
 
 import dev.orvaen.mmo.data.PlayerLook;
+import dev.orvaen.mmo.rom.RomCheck;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -25,13 +26,34 @@ public final class Storage {
 
     private Storage() {}
 
-    public static String romPath() {
-        return read(CONFIG).getProperty("rom.path");
+    /** ROM mémorisée pour un emplacement (Kanto, Hoenn), ou {@code null}. */
+    public static String romPath(RomCheck.Slot slot) {
+        Properties p = read(CONFIG);
+        String v = p.getProperty("rom." + slot.key());
+        if (v == null && slot == RomCheck.Slot.KANTO) v = p.getProperty("rom.path"); // ancien réglage
+        return v == null || v.isBlank() ? null : v;
     }
 
-    public static void setRomPath(String path) {
+    public static void setRomPath(RomCheck.Slot slot, String path) {
         Properties p = read(CONFIG);
-        p.setProperty("rom.path", path);
+        String legacy = p.getProperty("rom.path");
+        if (legacy != null && !p.containsKey("rom.kanto")) p.setProperty("rom.kanto", legacy); // migration
+        if (path == null || path.isBlank()) p.remove("rom." + slot.key());
+        else p.setProperty("rom." + slot.key(), path);
+        p.remove("rom.path");
+        write(CONFIG, p, "Configuration du moteur");
+    }
+
+    /** Emplacement à lancer : celui joué en dernier s'il est mémorisé. */
+    public static RomCheck.Slot lastSlot() {
+        String v = read(CONFIG).getProperty("rom.last", "");
+        for (RomCheck.Slot s : RomCheck.Slot.values()) if (s.key().equals(v)) return s;
+        return null;
+    }
+
+    public static void setLastSlot(RomCheck.Slot slot) {
+        Properties p = read(CONFIG);
+        p.setProperty("rom.last", slot.key());
         write(CONFIG, p, "Configuration du moteur");
     }
 

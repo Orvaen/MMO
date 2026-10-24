@@ -30,8 +30,15 @@ java -jar build\orvaen-mmo.jar
 java -jar build/orvaen-mmo.jar
 ```
 
-Au premier lancement une fenêtre te demande ta ROM ; son chemin est mémorisé dans
-`~/.orvaen-mmo/config.properties`. Tu crées ensuite ton personnage (voir plus bas), puis la partie commence. Tu peux aussi la passer directement : `--rom chemin/vers/jeu.gba`.
+Au premier lancement, la **fenêtre de configuration des ROM** s'ouvre, comme dans PokeMMO :
+une ligne par jeu (Rouge Feu / Vert Feuille, Émeraude), avec **Parcourir…** pour choisir le fichier
+dans l'explorateur de Windows (ou glisse le `.gba` sur la ligne). Chaque ROM est vérifiée tout de
+suite (✔ jeu et langue reconnus, ✘ fichier abîmé, jeu non pris en charge ou mauvaise ligne), puis
+**Jouer** lance le jeu coché. Ensuite, tu crées ton personnage et la partie commence.
+
+Aux lancements suivants, le jeu repart directement sur la dernière ROM jouée. Pour rouvrir la
+fenêtre : `java -jar build/orvaen-mmo.jar --roms`. Les chemins sont mémorisés dans
+`~/.orvaen-mmo/config.properties` (les ROM elles-mêmes ne sont jamais copiées).
 
 Avec Maven : `mvn package` puis `java -jar target/orvaen-mmo.jar`.
 

@@ -6,11 +6,13 @@ import dev.orvaen.mmo.data.Species;
 import dev.orvaen.mmo.data.WildEncounters;
 import dev.orvaen.mmo.engine.Game;
 import dev.orvaen.mmo.engine.Input.Button;
+import dev.orvaen.mmo.engine.RomLauncher;
 import dev.orvaen.mmo.engine.Storage;
 import dev.orvaen.mmo.gfx.GbaGfx;
 import dev.orvaen.mmo.rom.GameProfile;
 import dev.orvaen.mmo.rom.Lz77;
 import dev.orvaen.mmo.rom.Rom;
+import dev.orvaen.mmo.rom.RomCheck;
 import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.scenes.BattleScene;
 import dev.orvaen.mmo.scenes.CharacterCreatorScene;
@@ -75,6 +77,8 @@ public final class SelfTest {
         test("Personnage : impossible de valider sans nom", SelfTest::creatorRequiresName);
         test("Personnage : modification depuis le menu, puis annulation", SelfTest::editCharacter);
         test("Personnage : le personnage est rechargé au lancement suivant", SelfTest::characterPersists);
+        test("ROM : vérification de l'en-tête pour la fenêtre de choix", () -> romCheck(home));
+        test("ROM : un chemin par jeu, ancien réglage repris, dernier jeu relancé", () -> romSlots(home));
         test("Export : sprites, cartes et CSV", () -> exportTo(home.resolve("export")));
 
         System.out.printf("%n%d réussi(s), %d échec(s)%n", passed, failures.size());
@@ -572,6 +576,64 @@ public final class SelfTest {
         eq(g.save.look, again.save.look, "apparence relue");
         again.push(CharacterCreatorScene.firstScene(again));
         check(again.top() instanceof OverworldScene, "pas de nouvelle création si le personnage existe");
+    }
+
+    // ------------------------------------------------------------------ choix des ROM
+
+    private static void romCheck(Path home) throws Exception {
+        Path dir = Files.createDirectories(home.resolve("roms"));
+        Path good = SyntheticRom.writeFile(dir.resolve("rouge feu.gba"), SyntheticRom.build());
+
+        RomCheck.Result ok = RomCheck.inspect(good, RomCheck.Slot.KANTO);
+        check(ok.ok(), "ROM valide : " + ok.message());
+        eq("Rouge Feu (anglais) · 1 Mo", ok.message(), "message affiché");
+        check(RomCheck.inspect(good, null).ok(), "sans emplacement imposé");
+
+        RomCheck.Result wrong = RomCheck.inspect(good, RomCheck.Slot.HOENN);
+        check(!wrong.ok() && wrong.message().contains("Rouge Feu / Vert Feuille"), "mauvaise ligne : " + wrong.message());
+
+        byte[] broken = SyntheticRom.build();
+        broken[0xBD]++;
+        RomCheck.Result bad = RomCheck.inspect(SyntheticRom.writeFile(dir.resolve("abimee.gba"), broken), null);
+        check(!bad.ok() && bad.message().contains("en-tête"), "somme de contrôle fausse : " + bad.message());
+
+        byte[] other = SyntheticRom.build();
+        other[0xAC] = 'A';
+        other[0xAD] = 'X';
+        other[0xAE] = 'V';
+        SyntheticRom.fixHeader(other);
+        RomCheck.Result ruby = RomCheck.inspect(SyntheticRom.writeFile(dir.resolve("rubis.gba"), other), null);
+        check(!ruby.ok() && ruby.message().contains("non pris en charge"), "jeu non pris en charge : " + ruby.message());
+
+        Path tiny = Files.write(dir.resolve("mini.gba"), new byte[0x1000]);
+        check(!RomCheck.inspect(tiny, null).ok(), "fichier minuscule refusé");
+        check(RomCheck.inspect(dir.resolve("absente.gba"), null).message().contains("introuvable"), "fichier absent");
+        eq(RomCheck.Status.EMPTY, RomCheck.inspect(null, null).status(), "aucune ROM");
+
+        GameData d = new GameData(Rom.load(good));
+        eq("BPRE", d.rom.gameCode(), "le fichier vérifié se charge vraiment");
+    }
+
+    private static void romSlots(Path home) throws Exception {
+        Files.deleteIfExists(Storage.DIR.resolve("config.properties"));
+        Path good = SyntheticRom.writeFile(Files.createDirectories(home.resolve("roms2")).resolve("rf.gba"),
+                SyntheticRom.build());
+        check(RomLauncher.remembered() == null, "rien de mémorisé : la fenêtre doit s'ouvrir");
+
+        // Ancien réglage (une seule ROM) : repris sur la ligne Kanto
+        Files.writeString(Storage.DIR.resolve("config.properties"), "rom.path=" + good.toString().replace("\\", "\\\\") + "\n");
+        eq(good.toString(), Storage.romPath(RomCheck.Slot.KANTO), "ancien rom.path repris");
+        RomLauncher.Choice c = RomLauncher.remembered();
+        check(c != null && c.slot() == RomCheck.Slot.KANTO, "relance directe de la ROM mémorisée");
+
+        Storage.setRomPath(RomCheck.Slot.HOENN, home.resolve("absente.gba").toString());
+        Storage.setLastSlot(RomCheck.Slot.HOENN);
+        c = RomLauncher.remembered();
+        check(c != null && c.slot() == RomCheck.Slot.KANTO, "dernier jeu introuvable → l'autre ROM valide");
+
+        Storage.setRomPath(RomCheck.Slot.KANTO, null);
+        check(Storage.romPath(RomCheck.Slot.KANTO) == null, "ligne vidée");
+        check(RomLauncher.remembered() == null, "plus aucune ROM valide : la fenêtre doit s'ouvrir");
     }
 
     private static void exportTo(Path dir) throws Exception {

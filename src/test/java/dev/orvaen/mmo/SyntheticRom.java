@@ -31,6 +31,7 @@ public final class SyntheticRom {
         ascii(0xA0, "POKEMON FIRE");
         ascii(0xAC, "BPRE");
         rom[0xBC] = 0;
+        fixHeader(rom);
 
         buildSpecies();
         int primary = buildPrimaryTileset();
@@ -38,6 +39,20 @@ public final class SyntheticRom {
         buildMapsAndWild(primary, secondary);
         buildPlayerGraphics();
         return rom;
+    }
+
+    /** Octet fixe 0xB2 et somme de contrôle 0xBD : un en-tête GBA valide, comme sur une vraie cartouche. */
+    public static void fixHeader(byte[] rom) {
+        rom[0xB2] = (byte) 0x96;
+        int sum = 0;
+        for (int i = 0xA0; i <= 0xBC; i++) sum += rom[i] & 0xFF;
+        rom[0xBD] = (byte) (-(sum + 0x19));
+    }
+
+    /** Écrit la ROM dans un fichier de 1 Mo (taille minimale d'une vraie ROM GBA). */
+    public static java.nio.file.Path writeFile(java.nio.file.Path file, byte[] rom) throws java.io.IOException {
+        byte[] padded = java.util.Arrays.copyOf(rom, Math.max(rom.length, 0x10_0000));
+        return java.nio.file.Files.write(file, padded);
     }
 
     // ------------------------------------------------------------------ sprites du joueur (inventés)
