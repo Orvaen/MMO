@@ -88,6 +88,7 @@ public final class SelfTest {
         test("Pokémon : stats Gen 3, sauvegarde, ancien format complété", SelfTest::pokemonModel);
         test("Résumé : talents et natures de la ROM, EV / IV, fenêtre et barre d'équipe", SelfTest::summary);
         test("Réglages : volumes général / musique / effets, son coupé, zoom (mémorisés)", SelfTest::options);
+        test("Carte de la région : dessin, lieux et position lus dans la ROM, fenêtre (touche M)", SelfTest::regionMap);
         test("Combat : dégâts, efficacité, statut, K.O., expérience, nouvelle attaque", SelfTest::battleEngine);
         test("Combat : capture, fuite, dresseur et remplacement après K.O.", SelfTest::battleActions);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
@@ -1370,8 +1371,8 @@ public final class SelfTest {
         eq(Math.min(100, before + 5), o.value(dev.orvaen.mmo.scenes.OptionsWindow.MUSIC), "→ : +5 %");
         click(g, o.anchor("close"));
         check(!g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "× ferme les réglages");
-        // barre de raccourcis en bas à droite : le bouton Réglages (4e) ouvre la fenêtre
-        java.awt.geom.Rectangle2D b = dev.orvaen.mmo.scenes.PartyBarProbe.shortcut(3, 1280, 720);
+        // barre de raccourcis en bas à droite : le bouton Réglages (5e) ouvre la fenêtre
+        java.awt.geom.Rectangle2D b = dev.orvaen.mmo.scenes.PartyBarProbe.shortcut(4, 1280, 720);
         click(g, new java.awt.Point((int) b.getCenterX(), (int) b.getCenterY()));
         check(g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "raccourci en icône : réglages");
         b = dev.orvaen.mmo.scenes.PartyBarProbe.shortcut(1, 1280, 720);
@@ -1379,6 +1380,49 @@ public final class SelfTest {
         check(g.windowOpen("pokedex") && g.windowOpen(dev.orvaen.mmo.scenes.OptionsWindow.ID), "raccourci Pokédex : s'ouvre à côté des réglages");
         Storage.setMusicVolume(100);
         Storage.setEffectsVolume(100);
+    }
+
+    private static void regionMap() {
+        GameData d = data();
+        var rm = d.regionMap();
+        check(rm.available(), "carte de la région retrouvée");
+        eq(0x58, rm.sectionAt(0, SyntheticRom.REGION_TOWN_X, SyntheticRom.REGION_TOWN_Y), "lieu de la case de la ville");
+        eq(-1, rm.sectionAt(0, 0, 0), "case sans lieu");
+        eq(0, rm.mapOf(0x59), "la route est sur la carte de Kanto");
+        BufferedImage img = rm.image(0);
+        eq(240, img.getWidth(), "écran de 240 pixels");
+        eq(dev.orvaen.mmo.gfx.GbaGfx.bgr555ToArgb(SyntheticRom.REGION_SEA), img.getRGB(10, 10), "la mer (palette 0)");
+        eq(dev.orvaen.mmo.gfx.GbaGfx.bgr555ToArgb(SyntheticRom.REGION_LAND),
+                img.getRGB(RegionMapProbe.cellX(SyntheticRom.REGION_TOWN_X), RegionMapProbe.cellY(SyntheticRom.REGION_TOWN_Y)), "la terre sous la ville (palette 1)");
+        eq("BOURG TEST", d.maps.sectionName(0x58), "nom du lieu");
+
+        Game g = game();
+        OverworldScene w = world(g);
+        g.renderWindow(1280, 720);
+        g.input().type("m");
+        g.simulateFrame();
+        check(g.windowOpen(dev.orvaen.mmo.scenes.RegionMapWindow.ID), "touche M : la carte");
+        var win = (dev.orvaen.mmo.scenes.RegionMapWindow) g.windows().get(0);
+        eq(0, win.tab(), "onglet Kanto (là où est le joueur)");
+        java.awt.Point town = win.anchor("cell:" + SyntheticRom.REGION_TOWN_X + ":" + SyntheticRom.REGION_TOWN_Y);
+        eq(0x58, win.hoveredSection(town.x, town.y), "la souris sur la ville");
+        // la route (cases à droite de la ville, où le joueur n'est pas) s'éclaire au survol
+        java.awt.Point route = win.anchor("cell:" + (SyntheticRom.REGION_TOWN_X + 2) + ":" + SyntheticRom.REGION_TOWN_Y);
+        eq(0x59, win.hoveredSection(route.x, route.y), "la souris sur la route");
+        g.input().move(5, 5);
+        g.simulateFrame();
+        int before = g.renderWindow(1280, 720).getRGB(route.x, route.y);
+        g.input().move(route.x, route.y);
+        g.simulateFrame();
+        check(g.renderWindow(1280, 720).getRGB(route.x, route.y) != before, "le lieu survolé s'éclaire");
+        click(g, win.anchor("tab2"));
+        eq(2, win.tab(), "onglet Îles 4·5");
+        click(g, win.anchor("switch"));
+        eq(3, win.tab(), "bouton du jeu : carte suivante");
+        g.input().type("m");
+        g.simulateFrame();
+        check(!g.windowOpen(dev.orvaen.mmo.scenes.RegionMapWindow.ID), "M : referme la carte");
+        check(w != null, "monde");
     }
 
     private static void click(Game g, java.awt.Point p) {

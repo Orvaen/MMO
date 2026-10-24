@@ -17,7 +17,7 @@ import java.awt.geom.RoundRectangle2D;
 public final class UiIcons {
 
     public enum Icon { CARD, BARS, HEXAGON, BOLT, BALL, HASH, TAG, LEAF, STAR, PERSON, SPARK, ARROW_UP, BAG, HEART,
-        SPEAKER, MUTE, NOTE, GEAR, SCREEN, DEX, MENU }
+        SPEAKER, MUTE, NOTE, GEAR, SCREEN, DEX, MENU, MAP }
 
     private UiIcons() {
     }
@@ -157,6 +157,21 @@ public final class UiIcons {
                 g.fill(new Ellipse2D.Double(4.5, 3.5, 5, 5));
                 g.fill(new Ellipse2D.Double(10.3, 3.8, 1.8, 1.8));
                 g.draw(new Line2D.Double(5, 11.5, 11, 11.5));
+            }
+            case MAP -> {                             // carte pliée en trois volets
+                Path2D p = new Path2D.Double();
+                p.moveTo(1.5, 3.5);
+                p.lineTo(5.5, 2);
+                p.lineTo(10.5, 3.5);
+                p.lineTo(14.5, 2);
+                p.lineTo(14.5, 12.5);
+                p.lineTo(10.5, 14);
+                p.lineTo(5.5, 12.5);
+                p.lineTo(1.5, 14);
+                p.closePath();
+                g.draw(p);
+                g.draw(new Line2D.Double(5.5, 2, 5.5, 12.5));
+                g.draw(new Line2D.Double(10.5, 3.5, 10.5, 14));
             }
             case MENU -> {                            // menu
                 g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));

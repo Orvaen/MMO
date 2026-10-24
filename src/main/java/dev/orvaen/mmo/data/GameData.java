@@ -53,6 +53,7 @@ public final class GameData {
     private final Lazy<PokemonIcons> icons;
     private final Lazy<FollowerSprites> followerSprites;
     private final Lazy<PokemonTexts> texts;
+    private final Lazy<RegionMap> regionMap;
     public PlayerGraphics player;
 
     public GameData(Rom rom) {
@@ -77,6 +78,7 @@ public final class GameData {
         this.icons = new Lazy<>(() -> new PokemonIcons(rom));
         this.followerSprites = new Lazy<>(FollowerSprites::fromConfig);
         this.texts = new Lazy<>(() -> new PokemonTexts(rom));
+        this.regionMap = new Lazy<>(() -> new RegionMap(rom));
     }
 
     /** Images de l'écran titre (cherchées dans la ROM au premier appel). */
@@ -114,6 +116,11 @@ public final class GameData {
         return texts.get();
     }
 
+    /** La Carte de la Région (Kanto et les Îles Sevii), lue au premier besoin. */
+    public RegionMap regionMap() {
+        return regionMap.get();
+    }
+
     /** Effets de terrain du monde (herbe haute qui bouge…). */
     public dev.orvaen.mmo.world.FieldEffects fieldEffects() {
         return fieldEffects.get();
@@ -134,6 +141,7 @@ public final class GameData {
                 fieldEffects();
                 icons();
                 texts();
+                regionMap();
                 battle();
                 battleGraphics();
                 moveAnimations();

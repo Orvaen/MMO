@@ -115,6 +115,7 @@ Le son tourne à part, dans son propre fil d'exécution (`audio/AudioEngine`).
 | `SummaryWindow` | le résumé d'un Pokémon (touche E) : onglets en icônes (infos, stats, hexagone IV / EV, attaques), sprite sur un fond de combat de la ROM |
 | `OptionsWindow` | les réglages (touche O) : volume général, musique, effets sonores, son coupé, zoom |
 | `ShortcutBar` | les icônes de raccourcis en bas à droite (Équipe, Pokédex, Carte, Réglages, Menu) |
+| `RegionMapWindow` | la Carte de la Région (touche M) : dessin du jeu, lieu survolé, position du joueur, Îles Sevii |
 
 **Une image du monde** (`OverworldScene.update`) :
 
@@ -176,6 +177,7 @@ clignotement, la barre de PV descend…) → retour au menu.
 | ajouter une donnée lue dans la ROM | une classe dans `data/` ou `world/`, créée dans `GameData` |
 | ajouter une musique | `audio/Songs` (n° des morceaux) puis `game.data.audio.playBgm(n°)` |
 | changer ce qui est sauvegardé | `engine/Storage` |
+| changer la carte de la région | `scenes/RegionMapWindow` (lecture dans la ROM : `data/RegionMap`) |
 | ajouter un réglage (son, affichage…) | `scenes/OptionsWindow` (+ sa valeur dans `engine/Storage`) |
 | changer une règle de combat (dégâts, capture…) | `battle/Battle` |
 | changer le calcul des stats, les EV, le talent | `battle/Pokemon` |

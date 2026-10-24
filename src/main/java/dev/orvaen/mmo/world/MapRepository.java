@@ -103,6 +103,7 @@ public final class MapRepository {
                 readObjects(rom.pointer(header + 0x04)),
                 readSigns(rom.pointer(header + 0x04)),
                 profile);
+        map.section = rom.u8(header + 0x14);
         map.triggers = readTriggers(rom.pointer(header + 0x04));
         map.scripts = rom.pointer(header + 0x08);
         map.music = rom.u16(header + 0x10);
@@ -221,7 +222,13 @@ public final class MapRepository {
     }
 
     private String readName(int section, int group, int num) {
-        String fallback = "Carte " + group + "." + num;
+        String name = sectionName(section);
+        return name == null ? "Carte " + group + "." + num : name;
+    }
+
+    /** Nom d'un lieu (« section » de la Carte de la Région), ou null s'il n'en a pas. */
+    public String sectionName(int section) {
+        String fallback = null;
         if (labelsTable < 0) return fallback;
         int entry = profile == GameProfile.FIRERED_LEAFGREEN
                 ? labelsTable + (section - profile.mapLabelsStart) * 4

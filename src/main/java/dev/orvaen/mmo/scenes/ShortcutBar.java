@@ -23,6 +23,7 @@ final class ShortcutBar {
     static final Shortcut[] SHORTCUTS = {
             new Shortcut(Icon.BALL, "Équipe", "E", SummaryWindow.ID),
             new Shortcut(Icon.DEX, "Pokédex", "P", "pokedex"),
+            new Shortcut(Icon.MAP, "Carte", "M", RegionMapWindow.ID),
             new Shortcut(Icon.CARD, "Carte de dresseur", "C", "carte-dresseur"),
             new Shortcut(Icon.GEAR, "Réglages", "O", OptionsWindow.ID),
             new Shortcut(Icon.MENU, "Menu", "X", null),

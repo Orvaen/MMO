@@ -236,16 +236,26 @@ public final class OverworldScene implements Scene {
 
     /** Raccourci n° i de la barre du bas (même effet que sa touche). */
     private void shortcut(int i) {
-        switch (i) {
-            case 0 -> {
+        String id = ShortcutBar.SHORTCUTS[i].windowId();
+        if (id == null) {
+            game.push(new StartMenuScene(game, this));
+            return;
+        }
+        switch (id) {
+            case SummaryWindow.ID -> {
                 if (game.save.party.isEmpty()) showMessage("Tu n'as pas encore de Pokémon.");
                 else game.toggleWindow(new SummaryWindow(game, 0));
             }
-            case 1 -> game.toggleWindow(new DexWindow(game));
-            case 2 -> game.toggleWindow(new TrainerCardWindow(game));
-            case 3 -> game.toggleWindow(new OptionsWindow(game));
-            default -> game.push(new StartMenuScene(game, this));
+            case RegionMapWindow.ID -> game.toggleWindow(regionMapWindow());
+            case OptionsWindow.ID -> game.toggleWindow(new OptionsWindow(game));
+            case "pokedex" -> game.toggleWindow(new DexWindow(game));
+            default -> game.toggleWindow(new TrainerCardWindow(game));
         }
+    }
+
+    /** La Carte de la Région, qui suit le lieu où se trouve le joueur. */
+    RegionMapWindow regionMapWindow() {
+        return new RegionMapWindow(game, () -> map == null ? -1 : map.section);
     }
 
     /** Résumé du Pokémon n° {@code slot} de l'équipe (la fenêtre déjà ouverte change de Pokémon). */
@@ -260,7 +270,7 @@ public final class OverworldScene implements Scene {
         game.openWindow(new SummaryWindow(game, slot));
     }
 
-    /** Start : menu. P / C / E / O : Pokédex / carte de dresseur / équipe / réglages. Select : liste des cartes. */
+    /** Start : menu. E / P / M / C / O : équipe, Pokédex, carte, carte de dresseur, réglages (barre du bas). */
     private boolean handleMenus(Input in) {
         if (in.pressed(Button.START)) {
             game.push(new StartMenuScene(game, this));
@@ -273,10 +283,7 @@ public final class OverworldScene implements Scene {
                 }
             }
         }
-        if (in.pressed(Button.SELECT)) {
-            game.push(new MapListScene(game, this));
-            return true;
-        }
+
         return false;
     }
 

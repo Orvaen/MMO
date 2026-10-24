@@ -15,6 +15,8 @@ public final class GameMap {
     public final int num;
     public final String name;
     public final int mapType;
+    /** Lieu de la carte (« section » de la Carte de la Région) ; -1 si inconnu. Les intérieurs ont celui de la ville. */
+    public int section = -1;
     public final MapLayout layout;
     public final List<Warp> warps;
     public final List<Connection> connections;

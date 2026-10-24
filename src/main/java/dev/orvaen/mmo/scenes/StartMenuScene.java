@@ -17,10 +17,11 @@ import java.awt.geom.Rectangle2D;
  */
 public final class StartMenuScene implements Scene {
 
-    private static final String[] ITEMS = {"Pokémon", "Pokédex", "Carte de dresseur", "Personnage", "Cartes", "Réglages", "Sauvegarder", "Retour"};
+    private static final String[] ITEMS = {"Pokémon", "Pokédex", "Carte de dresseur", "Personnage", "Carte", "Réglages", "Sauvegarder", "Téléportation (test)", "Retour"};
     private static final String[] HINTS = {
             "Ton équipe : talents, natures, IV, EV, attaques", "Espèces vues et capturées", "Ton profil, ton temps de jeu, tes badges", "Modifier ton apparence",
-            "Aller sur une autre carte", "Son, musique, zoom", "Enregistrer la partie", "Revenir au jeu"
+            "Kanto et les Îles Sevii", "Son, musique, zoom", "Enregistrer la partie",
+            "Aller directement sur une carte (outil de test)", "Revenir au jeu"
     };
     private static final double PANEL_W = 260, HEADER_H = 46, ITEM_H = 48;
 
@@ -101,7 +102,10 @@ public final class StartMenuScene implements Scene {
                 game.openWindow(new TrainerCardWindow(game));
             }
             case 3 -> game.replace(new CharacterCreatorScene(game, true));
-            case 4 -> game.replace(new MapListScene(game, world));
+            case 4 -> {
+                game.pop();
+                game.openWindow(world.regionMapWindow());
+            }
             case 5 -> {
                 game.pop();
                 game.openWindow(new OptionsWindow(game));
@@ -112,6 +116,7 @@ public final class StartMenuScene implements Scene {
                 game.pop();
                 world.showMessage("Partie sauvegardée.");
             }
+            case 7 -> game.replace(new MapListScene(game, world));
             default -> game.pop();
         }
     }

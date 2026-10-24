@@ -49,6 +49,7 @@ public final class SyntheticRom {
 
         buildSpecies();
         buildPokemonTexts();
+        buildRegionMap();
         int primary = buildPrimaryTileset();
         int secondary = buildSecondaryTileset();
         buildMapsAndWild(primary, secondary);
@@ -245,6 +246,50 @@ public final class SyntheticRom {
         }
         int natureTable = (at + 3) & ~3;
         for (int i = 0; i < 25; i++) ptr(natureTable + i * 4, ptrs[i]);
+    }
+
+    /** Couleur de la mer et des cases de la carte de la région inventée. */
+    public static final int REGION_SEA = 0x7E00, REGION_LAND = 0x03E0;
+    /** Case (x, y) de la grille de Kanto où se trouve BOURG TEST (section 0x58), et ROUTE TEST (0x59). */
+    public static final int REGION_TOWN_X = 4, REGION_TOWN_Y = 10, REGION_NONE = 0xC5;
+
+    /**
+     * Carte de la région inventée, rangée comme dans Rouge Feu : tuiles (LZ, 0x2800), 4 plans d'écran
+     * (LZ, 1200 octets) à la suite, palette de 80 couleurs suivie du repère, et 4 grilles de lieux.
+     */
+    private void buildRegionMap() {
+        byte[] tiles = new byte[0x2800];
+        for (int i = 32; i < 64; i++) tiles[i] = 0x11;            // tuile 1 : couleur 1 partout
+        int tileData = alloc(0x2800 / 4);
+        writeLz(tileData, tiles);
+        // les 4 plans se suivent (alignés sur 4 octets), comme dans le jeu
+        java.io.ByteArrayOutputStream plans = new java.io.ByteArrayOutputStream();
+        for (int m = 0; m < 4; m++) {
+            byte[] tm = new byte[1200];
+            for (int i = 0; i < 600; i++) {
+                int x = i % 30, y = i / 30;
+                boolean land = x >= 8 && x < 12 && y >= 12 && y < 16;   // un carré de terre autour de la ville
+                int e = land ? 1 | 1 << 12 : 1;                          // palette 1 = terre, palette 0 = mer
+                tm[i * 2] = (byte) e;
+                tm[i * 2 + 1] = (byte) (e >> 8);
+            }
+            byte[] lz = Lz77Encoder.encode(tm);
+            plans.write(lz, 0, lz.length);
+            while (plans.size() % 4 != 0) plans.write(0);
+        }
+        int packed = alloc(plans.size());
+        System.arraycopy(plans.toByteArray(), 0, rom, packed, plans.size());
+        int pal = alloc(160 + 8);
+        w16(pal + 2, REGION_SEA);
+        w16(pal + 32 + 2, REGION_LAND);
+        byte[] mark = {0x00, 0x7C, (byte) 0x80, 0x7D, (byte) 0xFF, 0x7F, (byte) 0xFF, 0x7F};
+        System.arraycopy(mark, 0, rom, pal + 160, 8);
+        int grids = alloc(4 * 660 + 8);
+        for (int i = 0; i < 4 * 660; i++) rom[grids + i] = (byte) REGION_NONE;
+        rom[grids + REGION_TOWN_Y * 22 + REGION_TOWN_X] = 0x58;
+        rom[grids + REGION_TOWN_Y * 22 + REGION_TOWN_X + 1] = 0x59;
+        rom[grids + REGION_TOWN_Y * 22 + REGION_TOWN_X + 2] = 0x59;
+        rom[grids + 4 * 660] = 3;                                     // après : destinations du vol (petits n°)
     }
 
     private void buildSpecies() {
