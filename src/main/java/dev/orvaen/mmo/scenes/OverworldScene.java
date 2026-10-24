@@ -31,7 +31,7 @@ public final class OverworldScene implements Scene {
     private static final int POPUP_FRAMES = 150;
 
     private final Game game;
-    private Avatar avatar;
+    private PlayerSprite avatar;
     private final Random rng = new Random();
     private final Map<String, MapRenderer.Rendered> renders = new LinkedHashMap<>(16, 0.75f, true) {
         @Override
@@ -82,7 +82,7 @@ public final class OverworldScene implements Scene {
 
     /** Reprend l'apparence de la sauvegarde (après création ou modification du personnage). */
     private void refreshAvatar() {
-        avatar = game.save.look != null ? new Avatar(game.save.look) : Avatar.defaultPlayer();
+        avatar = new PlayerSprite(game.data.player, game.save.look);
     }
 
     @Override
@@ -444,7 +444,7 @@ public final class OverworldScene implements Scene {
         int step = 0;
         if (moving && distance == T && progress > 2 && progress < 14) step = stepLeftFoot ? 1 : 2;
         int sx = PLAYER_SCREEN_X, sy = PLAYER_SCREEN_Y;
-        avatar.draw(g, sx, sy, facing, step, hop);
+        avatar.drawOverworld(g, sx, sy, facing, step, hop);
 
         // Herbe haute : le bas de la case repasse devant les jambes
         if (!moving && map.isLandEncounterAt(px, py) && map.behaviorAt(px, py) == 0x02) {

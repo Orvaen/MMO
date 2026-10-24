@@ -58,19 +58,31 @@ Le dossier `export/` est ignoré par git.
 
 ## Création du personnage
 
-Au début de chaque nouvelle partie, tu crées ton personnage avec un aperçu en direct qui tourne sur lui-même :
+Comme dans PokeMMO, ton personnage utilise **les sprites du héros et de l'héroïne de ta ROM**
+(marche, portrait de face, vue de dos en combat), que le moteur recolore pièce par pièce :
 
-- **Nom** (10 caractères, accents acceptés)
-- **Peau** : 6 teintes
-- **Coiffure** : courts, mi-longs, longs, queue, pics, rasés — et 12 couleurs de cheveux
-- **Couvre-chef** : casquette, bonnet à pompon, bandana, chapeau ou tête nue — 15 couleurs
-- **Haut** : t-shirt, veste, sweat ou débardeur — 15 couleurs
-- **Pantalon** et **chaussures** : 15 couleurs chacun
-- **Aléatoire** pour tirer une tenue au hasard
+- **Nom** (10 caractères, accents acceptés) et **gabarit** : garçon ou fille
+- **Peau** : 7 teintes
+- **Cheveux, couvre-chef, haut, bas, chaussures, sac** : 27 teintures chacun
 
-Tu peux le modifier à tout moment via **X → PERSO** (Échap annule). Le personnage est dessiné par le moteur
-(aucun sprite de la ROM) et son apparence tient dans une courte chaîne (`PlayerLook`), prête à être
-envoyée aux autres joueurs dans le futur mode en ligne.
+Chaque pièce peut garder sa couleur d'origine. Les ombrages du sprite sont conservés (chaque nuance
+garde son écart de luminosité sur la nouvelle teinte), et les détails qui ne sont pas des vêtements
+restent intacts : yeux, bande blanche de la casquette, ruban du chapeau, Poké Ball tenue en main.
+
+Tu peux modifier ton personnage à tout moment via **X → PERSO** (Échap annule).
+
+Comment ça marche :
+- `player/PlayerGraphics` retrouve les sprites dans la ROM par la forme de leurs tables
+  (aucune adresse codée en dur) ;
+- `player/CosmeticMasks` dit quelle pièce occupe chaque pixel (index de palette + zone,
+  relevés sur les sprites de Rouge Feu / Vert Feuille) ;
+- `player/Recolor` applique les teintures.
+
+L'apparence tient dans une courte chaîne (`v2.1.3.12.27.20.0.0.5`), prête pour le mode en ligne.
+`--extract` exporte aussi les sprites du joueur lus (`export/joueur/`) pour vérifier ta ROM.
+
+Sur Émeraude (ou une ROM modifiée où ces sprites sont introuvables), le moteur se rabat
+sur un avatar dessiné qui reprend les mêmes couleurs.
 
 ## Ce qui marche déjà
 
@@ -85,10 +97,11 @@ envoyée aux autres joueurs dans le futur mode en ligne.
 - **Rencontres** : tables d'herbe de la ROM avec les probabilités officielles par emplacement
 - **Combat (prototype)** : apparition du Pokémon sauvage avec son sprite extrait, capture ou fuite
 - **Pokédex** : toutes les espèces de la ROM (sprite, types, statistiques), vues / capturées
-- **Personnage** : création et modification (nom, peau, coiffure, couvre-chef, tenue, couleurs)
+- **Personnage** : sprites du joueur lus dans la ROM et teints pièce par pièce (gabarit, peau, cheveux,
+  couvre-chef, haut, bas, chaussures, sac), à la création et via le menu
 - Sauvegarde locale par jeu dans `~/.orvaen-mmo/save-<code>.properties`
 
-L'avatar du joueur, la capsule de capture et l'interface sont dessinés par le moteur (design original).
+La capsule de capture et l'interface sont dessinées par le moteur (design original).
 
 ## Architecture
 
@@ -98,6 +111,7 @@ src/main/java/dev/orvaen/mmo/
 ├── gfx/      Formats graphiques GBA → images Java
 ├── data/     Espèces, sprites, rencontres sauvages (GameData = tout ce qui est extrait)
 ├── world/    Cartes : MapRepository, Tileset, MapLayout, warps, liaisons, MapRenderer
+├── player/   Sprites du joueur : localisation dans la ROM, masques par pièce, teinture
 ├── engine/   Fenêtre, boucle 60 i/s, entrées, interface, sauvegarde
 ├── scenes/   Monde, combat, Pokédex, menus
 └── tools/    Extracteur (--extract)
@@ -109,7 +123,7 @@ Les formats sont documentés dans les classes, d'après la décompilation
 
 ## Tests
 
-`build.sh` / `build.bat` lancent `SelfTest` (22 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
+`build.sh` / `build.bat` lancent `SelfTest` (25 tests, sans JUnit). Ils tournent sur une **ROM synthétique**
 fabriquée par `SyntheticRom` : un faux Rouge Feu minuscule (2 espèces, 2 cartes, données inventées)
 qui exerce toute la chaîne — pointeurs, LZ77, texte, tilesets, warps, liaisons, rencontres, rendu,
 déplacements, combat et création de personnage — sans aucune donnée Nintendo.
@@ -117,7 +131,7 @@ déplacements, combat et création de personnage — sans aucune donnée Nintend
 ## Feuille de route
 
 1. **Serveur en ligne** : serveur Java (sockets) qui synchronise positions, cartes et apparences des personnages
-2. Sprites du joueur et des PNJ lus depuis la ROM (overworld), PNJ et panneaux des cartes
+2. PNJ et panneaux des cartes (sprites lus depuis la ROM) ; cosmétiques en calques (lunettes, nouveaux couvre-chefs…)
 3. Vrai système de combat : équipe, attaques, types, expérience (données d'attaques de la ROM)
 4. Surf, pêche, rencontres d'eau ; musique et cris
 5. Émeraude complètement validé, puis Gen 4/5 (ROM NDS) comme PokeMMO

@@ -17,6 +17,7 @@ import dev.orvaen.mmo.scenes.CharacterCreatorScene;
 import dev.orvaen.mmo.scenes.DexScene;
 import dev.orvaen.mmo.scenes.Direction;
 import dev.orvaen.mmo.scenes.OverworldScene;
+import dev.orvaen.mmo.scenes.PlayerSprite;
 import dev.orvaen.mmo.scenes.StartMenuScene;
 import dev.orvaen.mmo.tools.Extractor;
 import dev.orvaen.mmo.world.Connection;
@@ -67,6 +68,9 @@ public final class SelfTest {
         test("Moteur : rencontre sauvage dans l'herbe puis fuite", SelfTest::encounter);
         test("Moteur : rendu d'une frame et du Pokédex", SelfTest::frames);
         test("Personnage : apparence, encodage et valeurs hors bornes", SelfTest::lookEncoding);
+        test("Sprites du joueur : localisés dans la ROM (marche, face, dos)", SelfTest::playerGraphicsFound);
+        test("Sprites du joueur : teinture par pièce, ombres et zones respectées", SelfTest::playerRecolor);
+        test("Sprites du joueur : repli sur l'avatar dessiné", SelfTest::playerFallback);
         test("Personnage : 1er lancement → création, nom tapé, tenue changée", SelfTest::createCharacter);
         test("Personnage : impossible de valider sans nom", SelfTest::creatorRequiresName);
         test("Personnage : modification depuis le menu, puis annulation", SelfTest::editCharacter);
@@ -361,20 +365,107 @@ public final class SelfTest {
     // ------------------------------------------------------------------ personnage
 
     private static void lookEncoding() {
-        PlayerLook a = new PlayerLook(2, 3, 4, 1, 7, 2, 9, 5, 6);
+        PlayerLook a = new PlayerLook(1, 3, 4, 1, 7, 2, 9, 5);
         eq(a, PlayerLook.decode(a.encode()), "aller-retour");
-        eq("2.3.4.1.7.2.9.5.6", a.encode(), "encodage");
-        check(PlayerLook.decode("abc") == null && PlayerLook.decode("1.2") == null && PlayerLook.decode(null) == null,
+        eq("v2.1.3.4.1.7.2.9.5", a.encode(), "encodage");
+        check(PlayerLook.decode("abc") == null && PlayerLook.decode("v2.1.2") == null && PlayerLook.decode(null) == null,
                 "les chaînes abîmées sont refusées");
-        PlayerLook clamped = new PlayerLook(99, -1, 0, 0, 0, 0, 0, 0, 0);
-        check(clamped.skin() < PlayerLook.SKIN_COLORS.length && clamped.hairStyle() >= 0, "valeurs ramenées dans les bornes");
-        eq(PlayerLook.HATS.length - 1, a.cycle(3, -2).hat(), "le choix boucle vers la fin");
-        eq(0, a.cycle(3, PlayerLook.HATS.length - 1).hat(), "le choix boucle vers le début");
+        eq(1, PlayerLook.decode("2.2.4.1.7.2.9.5.6").body(), "ancien format (cheveux longs) → gabarit fille");
+        eq(0, PlayerLook.decode("2.0.4.1.7.2.9.5.6").body(), "ancien format (cheveux courts) → gabarit garçon");
+        PlayerLook clamped = new PlayerLook(5, 99, -1, 0, 0, 0, 0, 0);
+        check(clamped.body() < PlayerLook.BODIES.length && clamped.skin() < PlayerLook.SKIN_TONES.length
+                && clamped.hair() >= 0, "valeurs ramenées dans les bornes");
+        eq(PlayerLook.DYES.length - 1, a.cycle(PlayerLook.Part.HAT, -2).hat(), "le choix boucle vers la fin");
+        eq(0, a.cycle(PlayerLook.Part.HAT, PlayerLook.DYES.length - 1).hat(), "le choix boucle vers le début");
+        eq(-1, PlayerLook.defaults().rgb(PlayerLook.Part.TOP), "index 0 = couleur d'origine");
+        eq(PlayerLook.DYES.length, PlayerLook.DYE_NAMES.length, "un nom par teinture");
+        eq(PlayerLook.SKIN_TONES.length, PlayerLook.SKIN_NAMES.length, "un nom par teinte de peau");
         Random r = new Random(5);
         for (int i = 0; i < 200; i++) {
             PlayerLook p = PlayerLook.random(r);
             eq(p, PlayerLook.decode(p.encode()), "tenue aléatoire valide");
         }
+    }
+
+    // ------------------------------------------------------------------ sprites du joueur
+
+    private static double lightness(int argb) {
+        int r = argb >> 16 & 0xFF, g = argb >> 8 & 0xFF, b = argb & 0xFF;
+        return (Math.max(r, Math.max(g, b)) + Math.min(r, Math.min(g, b))) / 510.0;
+    }
+
+    private static void playerGraphicsFound() {
+        GameData d = data();
+        check(d.player.available(), "sprites trouvés : " + d.player.problem());
+        eq(16, d.player.overworld(0, 0).width(), "largeur frame de marche");
+        eq(32, d.player.overworld(1, 8).height(), "hauteur frame de marche");
+        eq(64, d.player.front(1).width(), "portrait 64x64");
+        eq(64, d.player.back(0).height(), "dos 64x64");
+        eq(0xc, d.player.front(0).index(30, 12), "pixel repère du portrait");
+        eq(0x5, d.player.back(1).index(30, 45), "pixel repère du dos (non compressé)");
+        check(d.summary().contains("sprites du joueur : ROM"), "résumé --info");
+    }
+
+    private static void playerRecolor() {
+        GameData d = data();
+        int red = GbaGfx.bgr555ToArgb(SyntheticRom.PLAYER_RED);
+        int redDark = GbaGfx.bgr555ToArgb(SyntheticRom.PLAYER_RED_DARK);
+
+        PlayerSprite original = new PlayerSprite(d.player, PlayerLook.defaults());
+        check(original.fromRom(), "sprites ROM utilisés");
+        BufferedImage o = original.overworldFrame(Direction.DOWN, 0);
+        eq(red, o.getRGB(5, 14), "origine : couvre-chef inchangé");
+        eq(red, o.getRGB(5, 24), "origine : haut inchangé");
+        eq(0, o.getRGB(0, 0) >>> 24, "fond transparent");
+
+        int blue = indexOf("Bleu");
+        PlayerLook look = PlayerLook.defaults().cycle(PlayerLook.Part.HAT, blue);
+        BufferedImage dyed = new PlayerSprite(d.player, look).overworldFrame(Direction.DOWN, 0);
+        int hat = dyed.getRGB(5, 14), hatShade = dyed.getRGB(5, 15);
+        check((hat & 0xFF) > (hat >> 16 & 0xFF), "couvre-chef teint en bleu");
+        check(lightness(hatShade) < lightness(hat), "l'ombre du couvre-chef reste plus sombre");
+        check(lightness(redDark) < lightness(red), "(contrôle de la palette de test)");
+        eq(red, dyed.getRGB(5, 24), "le haut, même index, garde sa couleur");
+        eq(o.getRGB(5, 18), dyed.getRGB(5, 18), "la peau n'est pas touchée");
+
+        BufferedImage right = new PlayerSprite(d.player, look).overworldFrame(Direction.RIGHT, 0);
+        BufferedImage left = new PlayerSprite(d.player, look).overworldFrame(Direction.LEFT, 0);
+        eq(left.getRGB(5, 15), right.getRGB(10, 15), "la vue de droite est le miroir de la gauche");
+
+        PlayerLook top = PlayerLook.defaults().cycle(PlayerLook.Part.TOP, indexOf("Vert"));
+        BufferedImage face = new PlayerSprite(d.player, top).front();
+        int shirt = face.getRGB(30, 30);
+        check((shirt >> 8 & 0xFF) > (shirt >> 16 & 0xFF), "portrait : haut teint en vert");
+        eq(red, face.getRGB(30, 12), "portrait : casquette d'origine");
+        eq(red, face.getRGB(46, 31), "portrait : la balle tenue en main n'est pas teinte");
+
+        PlayerLook skin = PlayerLook.defaults().cycle(PlayerLook.Part.SKIN, 6);
+        BufferedImage s = new PlayerSprite(d.player, skin).overworldFrame(Direction.DOWN, 0);
+        check(s.getRGB(5, 18) != o.getRGB(5, 18), "la teinte de peau change la peau");
+    }
+
+    private static int indexOf(String dyeName) {
+        for (int i = 0; i < PlayerLook.DYE_NAMES.length; i++) if (PlayerLook.DYE_NAMES[i].equals(dyeName)) return i;
+        throw new AssertionError("teinture inconnue " + dyeName);
+    }
+
+    private static void playerFallback() {
+        byte[] bytes = SyntheticRom.build();
+        bytes[0xAC + 2] = 'E'; // BPEE : Émeraude, sprites du joueur non pris en charge
+        GameData d;
+        try {
+            d = new GameData(new Rom(bytes));
+        } catch (RomException e) {
+            // la ROM synthétique n'a pas les structures Émeraude : on vérifie le repli autrement
+            d = null;
+        }
+        dev.orvaen.mmo.player.PlayerGraphics none = new dev.orvaen.mmo.player.PlayerGraphics(new Rom(bytes));
+        check(!none.available() && none.problem() != null, "Émeraude : repli annoncé");
+        PlayerSprite fallback = new PlayerSprite(none, new PlayerLook(1, 2, 3, 4, 5, 6, 7, 8));
+        check(!fallback.fromRom(), "avatar de secours");
+        eq(64, fallback.front().getWidth(), "portrait de secours");
+        eq(32, fallback.overworldFrame(Direction.UP, 1).getHeight(), "frame de secours");
+        check(d == null || d.summary().contains("avatar de secours"), "résumé --info");
     }
 
     private static void tap(Game g, Button b) {
@@ -404,17 +495,19 @@ public final class SelfTest {
         for (int i = 0; i < 10; i++) g.simulateFrame();
         eq(1, c.row(), "on passe à la ligne suivante");
 
-        PlayerLook before = c.look();
-        tap(g, Button.RIGHT);                     // peau suivante
-        eq(Math.floorMod(before.skin() + 1, PlayerLook.SKIN_COLORS.length), c.look().skin(), "couleur de peau changée");
-        tap(g, Button.DOWN);
+        tap(g, Button.RIGHT);                     // gabarit : fille
+        eq(1, c.look().body(), "gabarit changé");
+        tap(g, Button.DOWN);                      // peau
+        tap(g, Button.RIGHT);
+        eq(1, c.look().skin(), "teinte de peau changée");
         tap(g, Button.DOWN);
         tap(g, Button.DOWN);                      // couvre-chef
         tap(g, Button.LEFT);
-        eq(Math.floorMod(before.hat() - 1, PlayerLook.HATS.length), c.look().hat(), "couvre-chef changé");
+        eq(PlayerLook.DYES.length - 1, c.look().hat(), "teinture du couvre-chef changée (boucle)");
+        check(c.sprite().fromRom(), "l'aperçu utilise les sprites de la ROM");
 
         BufferedImage img = g.renderFrame();
-        check(img.getRGB(50, 80) != img.getRGB(2, 80), "l'aperçu du personnage est dessiné");
+        check(img.getRGB(12 + 30, 26 + 12) != img.getRGB(60, 30), "le portrait est dessiné dans l'aperçu");
 
         tap(g, Button.START);                     // va sur « Terminer »
         tap(g, Button.A);
@@ -451,7 +544,7 @@ public final class SelfTest {
         check(!c.isTypingName(), "le nom existant n'est pas ressaisi");
         for (int i = 0; i < 10; i++) g.simulateFrame();
         tap(g, Button.DOWN);
-        tap(g, Button.RIGHT);                     // change la peau
+        tap(g, Button.RIGHT);                     // change le gabarit
         check(!c.look().equals(PlayerLook.defaults()), "aperçu modifié");
         tap(g, Button.B);                         // annuler
         check(g.top() == w, "retour au monde");
@@ -471,7 +564,7 @@ public final class SelfTest {
     private static void characterPersists() {
         Game g = freshGame();
         g.save.name = "Rayan";
-        g.save.look = new PlayerLook(4, 2, 7, 3, 1, 1, 6, 8, 13);
+        g.save.look = new PlayerLook(1, 2, 7, 3, 1, 1, 6, 8);
         g.save.store();
         Game again = new Game(data());
         check(again.save.hasCharacter(), "personnage relu");
@@ -489,5 +582,7 @@ public final class SelfTest {
         String csv = Files.readString(dir.resolve("especes.csv"));
         check(csv.contains("1;TESTMON;Feu;Plante;45"), "ligne CSV de TESTMON");
         check(Files.exists(dir.resolve("sprites/002_Bebe-Eclair.png")), "nom de fichier sans accents");
+        check(Files.exists(dir.resolve("joueur/fille_marche.png")), "sprites du joueur exportés");
+        check(Files.exists(dir.resolve("joueur/garcon_dos.png")), "vue de dos exportée");
     }
 }

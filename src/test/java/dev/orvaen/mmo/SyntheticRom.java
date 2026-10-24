@@ -12,7 +12,7 @@ import java.util.HexFormat;
  */
 public final class SyntheticRom {
 
-    public static final int SIZE = 0x40000;
+    public static final int SIZE = 0x60000;
 
     // Couleurs (BGR555) choisies pour être faciles à reconnaître au rendu
     public static final int GREEN = 0x03E0;   // tuile 1 · palette 0 · couleur 1
@@ -36,7 +36,109 @@ public final class SyntheticRom {
         int primary = buildPrimaryTileset();
         int secondary = buildSecondaryTileset();
         buildMapsAndWild(primary, secondary);
+        buildPlayerGraphics();
         return rom;
+    }
+
+    // ------------------------------------------------------------------ sprites du joueur (inventés)
+
+    /** Couleurs de la palette de test du joueur (BGR555). */
+    public static final int PLAYER_RED = 0x001F, PLAYER_RED_DARK = 0x0010, PLAYER_SKIN = 0x4E7F, PLAYER_BLUE = 0x7C00;
+
+    /**
+     * Pixels repères, en coordonnées de sprite :
+     * marche (16x32) : (5,14) idx c « couvre-chef », (5,24) idx c « haut », (5,15) idx 8 ombre de couvre-chef,
+     *                  (5,18) idx 2 « peau », (5,28) idx 6 « bas » ; (12,14) idx c uniquement en frame 0 (asymétrie)
+     * portrait (64x64) : (30,12) idx c couvre-chef, (30,30) idx c haut, (30,45) idx 5 bas, (46,31) idx c balle tenue
+     */
+    private void buildPlayerGraphics() {
+        int[] pal = new int[16];
+        pal[2] = PLAYER_SKIN;
+        pal[5] = PLAYER_BLUE;
+        pal[6] = PLAYER_BLUE;
+        pal[8] = PLAYER_RED_DARK;
+        pal[0xc] = PLAYER_RED;
+        pal[0xf] = 0;
+        int owPal = alloc(32);
+        for (int i = 0; i < 16; i++) w16(owPal + i * 2, pal[i]);
+        int palTable = alloc(24);
+        ptr(palTable, owPal);
+        w16(palTable + 4, 0x1100);
+        ptr(palTable + 8, owPal);
+        w16(palTable + 12, 0x1101);
+
+        byte[] frame0 = new byte[256], frame = new byte[256];
+        for (byte[] f : new byte[][]{frame0, frame}) {
+            setPixel(f, 2, 5, 14, 0xc);
+            setPixel(f, 2, 5, 15, 0x8);
+            setPixel(f, 2, 5, 18, 0x2);
+            setPixel(f, 2, 5, 24, 0xc);
+            setPixel(f, 2, 5, 28, 0x6);
+        }
+        setPixel(frame0, 2, 12, 14, 0xc);
+        int f0 = alloc(256);
+        System.arraycopy(frame0, 0, rom, f0, 256);
+        int f1 = alloc(256);
+        System.arraycopy(frame, 0, rom, f1, 256);
+
+        for (int tag : new int[]{0x1100, 0x1110}) {
+            int images = alloc(9 * 8);
+            for (int i = 0; i < 9; i++) {
+                ptr(images + i * 8, i == 0 ? f0 : f1);
+                w16(images + i * 8 + 4, 0x100);
+            }
+            int info = alloc(0x24);
+            w16(info, 0xFFFF);
+            w16(info + 2, tag);
+            w16(info + 4, 0x1102);
+            w16(info + 6, 0x200);
+            w16(info + 8, 16);
+            w16(info + 10, 32);
+            ptr(info + 0x1C, images);
+        }
+
+        byte[] pic = new byte[0x800];
+        setPixel(pic, 8, 30, 12, 0xc);
+        setPixel(pic, 8, 30, 30, 0xc);
+        setPixel(pic, 8, 30, 45, 0x5);
+        setPixel(pic, 8, 46, 31, 0xc);
+        int picData = alloc(0x800 + 0x100 + 16);
+        writeLz(picData, pic);
+        byte[] picPal = new byte[32];
+        for (int i = 0; i < 16; i++) put16(picPal, i * 2, pal[i]);
+        int picPalData = alloc(64);
+        writeLz(picPalData, picPal);
+
+        int ids = 137;
+        int sheets = alloc(ids * 8 + 8);
+        int pals = alloc(ids * 8 + 8);
+        for (int k = 0; k < ids; k++) {
+            ptr(sheets + k * 8, picData);
+            w16(sheets + k * 8 + 4, 0x800);
+            w16(sheets + k * 8 + 6, k);
+            ptr(pals + k * 8, picPalData);
+            w16(pals + k * 8 + 4, k);
+        }
+
+        int backData = alloc(0x800);
+        System.arraycopy(pic, 0, rom, backData, 0x800); // vue de dos stockée non compressée
+        int backSheets = alloc(3 * 8 + 8);
+        for (int k = 0; k < 3; k++) {
+            ptr(backSheets + k * 8, backData);
+            w16(backSheets + k * 8 + 4, k < 2 ? 0x2800 : 0x2000);
+            w16(backSheets + k * 8 + 6, k);
+        }
+        int backPals = alloc(6 * 8 + 8);
+        for (int k = 0; k < 6; k++) {
+            ptr(backPals + k * 8, picPalData);
+            w16(backPals + k * 8 + 4, k);
+        }
+    }
+
+    /** Écrit l'index de couleur d'un pixel dans des tuiles 4bpp rangées ligne par ligne. */
+    private static void setPixel(byte[] tiles, int widthTiles, int x, int y, int index) {
+        int o = ((y >> 3) * widthTiles + (x >> 3)) * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+        tiles[o] = (byte) ((x & 1) == 0 ? (tiles[o] & 0xF0) | index : (tiles[o] & 0x0F) | index << 4);
     }
 
     // ------------------------------------------------------------------ espèces

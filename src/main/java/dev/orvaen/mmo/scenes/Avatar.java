@@ -24,16 +24,22 @@ public final class Avatar {
     private final int hatStyle;
     private final int topStyle;
 
+    /** Avatar de secours (ROM sans sprites de joueur exploitables) : mêmes couleurs que les sprites ROM. */
     public Avatar(PlayerLook look) {
-        this.skin = new Color(look.skinRgb());
-        this.hair = new Color(look.hairRgb());
-        this.hat = new Color(look.hatRgb());
-        this.top = new Color(look.topRgb());
-        this.pants = new Color(look.pantsRgb());
-        this.shoes = new Color(look.shoesRgb());
-        this.hairStyle = look.hairStyle();
-        this.hatStyle = look.hat();
-        this.topStyle = look.top();
+        boolean girl = look.body() == 1;
+        this.skin = new Color(pick(look.rgb(PlayerLook.Part.SKIN), 0xF0C8A0));
+        this.hair = new Color(pick(look.rgb(PlayerLook.Part.HAIR), girl ? 0x8B5A2B : 0x3A2A20));
+        this.hat = new Color(pick(look.rgb(PlayerLook.Part.HAT), girl ? 0xF1FAEE : 0xE63946));
+        this.top = new Color(pick(look.rgb(PlayerLook.Part.TOP), girl ? 0x2A9D8F : 0xE63946));
+        this.pants = new Color(pick(look.rgb(PlayerLook.Part.BOTTOM), girl ? 0xD62828 : 0x3A86FF));
+        this.shoes = new Color(pick(look.rgb(PlayerLook.Part.SHOES), girl ? 0xF1FAEE : 0x6C757D));
+        this.hairStyle = girl ? 2 : 0;
+        this.hatStyle = girl ? 3 : 0;
+        this.topStyle = girl ? 3 : 0;
+    }
+
+    private static int pick(int chosen, int fallback) {
+        return chosen < 0 ? fallback : chosen;
     }
 
     public static Avatar defaultPlayer() {

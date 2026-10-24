@@ -1,5 +1,6 @@
 package dev.orvaen.mmo.data;
 
+import dev.orvaen.mmo.player.PlayerGraphics;
 import dev.orvaen.mmo.rom.Rom;
 import dev.orvaen.mmo.world.MapRenderer;
 import dev.orvaen.mmo.world.MapRepository;
@@ -12,6 +13,7 @@ public final class GameData {
     public final MapRepository maps;
     public final WildEncounters wild;
     public final MapRenderer renderer;
+    public PlayerGraphics player;
 
     public GameData(Rom rom) {
         this.rom = rom;
@@ -19,12 +21,14 @@ public final class GameData {
         this.maps = new MapRepository(rom);
         this.wild = new WildEncounters(rom, species.count());
         this.renderer = new MapRenderer(rom.profile());
+        this.player = new PlayerGraphics(rom);
     }
 
     public String summary() {
         int total = 0;
         for (int g = 0; g < maps.groupCount(); g++) total += maps.mapCount(g);
-        return String.format("%s · %d espèces · %d cartes · %d zones de rencontres",
-                rom, species.all().size(), total, wild.mapsWithLandEncounters());
+        return String.format("%s · %d espèces · %d cartes · %d zones de rencontres · sprites du joueur : %s",
+                rom, species.all().size(), total, wild.mapsWithLandEncounters(),
+                player.available() ? "ROM" : "avatar de secours (" + player.problem() + ")");
     }
 }

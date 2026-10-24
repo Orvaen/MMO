@@ -28,7 +28,7 @@ public final class BattleScene implements Scene {
     private final int level;
     private final BufferedImage sprite;
     private final Random rng = new Random();
-    private final Avatar avatar;
+    private final PlayerSprite avatar;
 
     private State state = State.INTRO;
     private int timer;
@@ -42,7 +42,7 @@ public final class BattleScene implements Scene {
         this.species = game.data.species.get(speciesId);
         this.level = level;
         this.sprite = game.data.species.frontSprite(speciesId);
-        this.avatar = game.save.look != null ? new Avatar(game.save.look) : Avatar.defaultPlayer();
+        this.avatar = new PlayerSprite(game.data.player, game.save.look);
         this.text = "Un " + species.name() + " sauvage apparaît !";
     }
 
@@ -137,12 +137,9 @@ public final class BattleScene implements Scene {
             drawCapsule(g, 176, 62, wobble);
         }
 
-        // Dresseur (vu de dos)
-        Graphics2D t = (Graphics2D) g.create();
-        t.translate(24, 74);
-        t.scale(2, 2);
-        avatar.draw(t, 0, 0, Direction.UP, 0, 0);
-        t.dispose();
+        // Dresseur (vu de dos), coupé par la boîte de texte comme sur GBA
+        int enter = state == State.INTRO ? Math.max(0, 120 - timer * 6) : 0;
+        g.drawImage(avatar.back(), 20 + enter, h - 44 - 60, null);
 
         // Encadré d'informations
         Ui.box(g, 6, 8, 110, 36);

@@ -1,7 +1,11 @@
 package dev.orvaen.mmo.tools;
 
 import dev.orvaen.mmo.data.GameData;
+import dev.orvaen.mmo.data.PlayerLook;
 import dev.orvaen.mmo.data.Species;
+import dev.orvaen.mmo.player.CosmeticMasks;
+import dev.orvaen.mmo.player.PlayerGraphics;
+import dev.orvaen.mmo.player.Recolor;
 import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.world.GameMap;
 import dev.orvaen.mmo.world.MapRenderer;
@@ -15,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.Normalizer;
+import java.util.List;
 
 /**
  * Exporte ce que le moteur lit dans la ROM, pour vérifier l'extraction à l'œil.
@@ -69,8 +74,32 @@ public final class Extractor {
                 }
             }
         }
-        System.out.printf("Export terminé dans %s : %d sprites, %d cartes (%d illisibles).%n",
-                dir.toAbsolutePath(), spriteCount, mapCount, failures);
+        String player = exportPlayer(dir);
+        System.out.printf("Export terminé dans %s : %d sprites, %d cartes (%d illisibles), joueur : %s.%n",
+                dir.toAbsolutePath(), spriteCount, mapCount, failures, player);
+    }
+
+    /** Sprites du joueur tels que lus dans la ROM (d'origine), pour vérifier la localisation. */
+    private String exportPlayer(Path dir) throws IOException {
+        if (!data.player.available()) return "non trouvé (" + data.player.problem() + ")";
+        Path out = Files.createDirectories(dir.resolve("joueur"));
+        String[] names = {"garcon", "fille"};
+        for (int body = 0; body < 2; body++) {
+            PlayerLook look = PlayerLook.defaults().withBody(body);
+            BufferedImage strip = new BufferedImage(16 * PlayerGraphics.OW_FRAMES, 32, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = strip.createGraphics();
+            for (int f = 0; f < PlayerGraphics.OW_FRAMES; f++) {
+                g.drawImage(Recolor.render(data.player.overworld(body, f), List.of(), look, CosmeticMasks.ALL, 0, false),
+                        f * 16, 0, null);
+            }
+            g.dispose();
+            ImageIO.write(strip, "png", out.resolve(names[body] + "_marche.png").toFile());
+            ImageIO.write(Recolor.render(data.player.front(body), List.of(), look, CosmeticMasks.ALL, 0, false),
+                    "png", out.resolve(names[body] + "_face.png").toFile());
+            ImageIO.write(Recolor.render(data.player.back(body), List.of(), look, CosmeticMasks.ALL, 0, false),
+                    "png", out.resolve(names[body] + "_dos.png").toFile());
+        }
+        return "exporté dans joueur/";
     }
 
     /** Nom de fichier portable : sans accents ni caractères spéciaux. */
