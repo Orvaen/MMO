@@ -21,7 +21,7 @@ import java.util.List;
  */
 public final class TitleScene implements Scene {
 
-    private enum Choice { PLAY, CHARACTER, QUIT }
+    private enum Choice { PLAY, CHARACTER, NEW_GAME, QUIT }
 
     private static final double BTN_W = 300, BTN_H = 46, BTN_GAP = 12;
 
@@ -39,7 +39,10 @@ public final class TitleScene implements Scene {
     public void onEnter() {
         choices.clear();
         choices.add(Choice.PLAY);
-        if (game.save.hasCharacter()) choices.add(Choice.CHARACTER);
+        if (game.save.hasCharacter()) {
+            choices.add(Choice.CHARACTER);
+            choices.add(Choice.NEW_GAME);
+        }
         choices.add(Choice.QUIT);
         cursor = Math.min(cursor, choices.size() - 1);
     }
@@ -48,6 +51,7 @@ public final class TitleScene implements Scene {
         return switch (c) {
             case PLAY -> game.save.hasCharacter() ? "JOUER" : "NOUVEAU PERSONNAGE";
             case CHARACTER -> "MODIFIER LE PERSONNAGE";
+            case NEW_GAME -> "NOUVELLE PARTIE";
             case QUIT -> "QUITTER";
         };
     }
@@ -70,10 +74,49 @@ public final class TitleScene implements Scene {
         return new Point((int) r.getCenterX(), (int) r.getCenterY());
     }
 
+    // Confirmation « nouvelle partie » (efface la progression)
+    private boolean confirming;
+    private int confirmCursor = 1;
+
+    private Rectangle2D confirmButton(int i) {
+        int w = game.viewWidth(), h = game.viewHeight();
+        double s = uiScale(w, h), bw = 150 * s, bh = 40 * s;
+        double cx = w / 2.0, y = h / 2.0 + 30 * s;
+        return new Rectangle2D.Double(i == 0 ? cx - bw - 8 * s : cx + 8 * s, y, bw, bh);
+    }
+
+    /** Bouton de la confirmation (tests) : 0 « Oui, recommencer », 1 « Annuler ». */
+    public Point confirmAnchor(int i) {
+        Rectangle2D r = confirmButton(i);
+        return new Point((int) r.getCenterX(), (int) r.getCenterY());
+    }
+
+    private void confirm(boolean yes) {
+        confirming = false;
+        if (!yes) return;
+        game.save.reset();
+        game.fadeThen(() -> game.replace(new CharacterCreatorScene(game, false)));
+    }
+
     @Override
     public void update(Input in) {
         frame++;
         hover = "";
+        if (confirming) {
+            for (int i = 0; i < 2; i++) {
+                if (confirmButton(i).contains(in.mouseX(), in.mouseY())) {
+                    confirmCursor = i;
+                    if (in.mousePressed()) {
+                        confirm(i == 0);
+                        return;
+                    }
+                }
+            }
+            if (in.repeat(Button.LEFT) || in.repeat(Button.RIGHT)) confirmCursor = 1 - confirmCursor;
+            if (in.pressed(Button.B)) confirm(false);
+            else if (in.pressed(Button.A)) confirm(confirmCursor == 0);
+            return;
+        }
         for (int i = 0; i < choices.size(); i++) {
             if (button(i).contains(in.mouseX(), in.mouseY())) {
                 hover = choices.get(i).name();
@@ -93,6 +136,10 @@ public final class TitleScene implements Scene {
         switch (c) {
             case PLAY -> game.fadeThen(() -> game.replace(CharacterCreatorScene.firstScene(game)));
             case CHARACTER -> game.push(new CharacterCreatorScene(game, true));
+            case NEW_GAME -> {
+                confirming = true;
+                confirmCursor = 1;
+            }
             case QUIT -> game.quit();
         }
     }
@@ -147,5 +194,31 @@ public final class TitleScene implements Scene {
         String duo = Backdrop.duoNames(game.data);
         String right = duo.isEmpty() ? "Données lues depuis ta ROM" : duo + " · lus depuis ta ROM";
         g.drawString(right, (float) (w - 16 * s - g.getFontMetrics().stringWidth(right)), (float) (h - 16 * s));
+
+        if (confirming) {
+            g.setColor(new Color(0, 0, 0, 150));
+            g.fillRect(0, 0, w, h);
+            double pw = 440 * s, ph = 170 * s, px = (w - pw) / 2, py = h / 2.0 - 100 * s;
+            HiUi.fill(g, HiUi.PANEL, px, py, pw, ph, 10 * s);
+            HiUi.stroke(g, HiUi.PANEL_BORDER, px, py, pw, ph, 10 * s, 1f);
+            g.setFont(HiUi.font((float) (17 * s), true));
+            g.setColor(Color.WHITE);
+            HiUi.centered(g, "Commencer une nouvelle partie ?", px, py + 14 * s, pw, 30 * s);
+            g.setFont(HiUi.font((float) (13 * s), false));
+            g.setColor(HiUi.MUTED);
+            HiUi.centered(g, "La progression de " + game.save.name + " sera effacée\n(une copie de secours est gardée).",
+                    px, py + 48 * s, pw, 46 * s);
+            String[] labels = {"Oui, recommencer", "Annuler"};
+            for (int i = 0; i < 2; i++) {
+                Rectangle2D r = confirmButton(i);
+                boolean on = i == confirmCursor;
+                Color base = i == 0 ? new Color(0xB8405A) : new Color(0x3A3E5C);
+                HiUi.fill(g, on ? base.brighter() : base, r.getX(), r.getY(), r.getWidth(), r.getHeight(), 6 * s);
+                if (on) HiUi.stroke(g, Color.WHITE, r.getX(), r.getY(), r.getWidth(), r.getHeight(), 6 * s, 1.4f);
+                g.setFont(HiUi.font((float) (13 * s), true));
+                g.setColor(Color.WHITE);
+                HiUi.centered(g, labels[i], r.getX(), r.getY(), r.getWidth(), r.getHeight());
+            }
+        }
     }
 }

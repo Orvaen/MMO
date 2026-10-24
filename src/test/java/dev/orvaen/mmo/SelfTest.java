@@ -1105,6 +1105,25 @@ public final class SelfTest {
         click(g2, t2.anchor("PLAY"));
         for (int i = 0; i < 30; i++) g2.simulateFrame();
         check(g2.top() instanceof OverworldScene, "avec personnage : Jouer → le monde");
+
+        // Nouvelle partie : confirmation, puis tout est effacé (copie de secours gardée)
+        g2.save.caught.add(1);
+        g2.save.flags.set(0x300);
+        g2.save.store();
+        dev.orvaen.mmo.scenes.TitleScene t3 = new dev.orvaen.mmo.scenes.TitleScene(g2);
+        g2.push(t3);
+        g2.renderWindow(1280, 800);
+        click(g2, t3.anchor("NEW_GAME"));
+        g2.renderWindow(1280, 800);
+        click(g2, t3.confirmAnchor(1));
+        check(g2.save.hasCharacter(), "Annuler : rien n'est effacé");
+        click(g2, t3.anchor("NEW_GAME"));
+        click(g2, t3.confirmAnchor(0));
+        for (int i = 0; i < 30; i++) g2.simulateFrame();
+        check(g2.top() instanceof CharacterCreatorScene, "nouvelle partie → création du personnage");
+        check(!g2.save.hasCharacter() && !g2.save.hasPosition(), "personnage et position effacés");
+        check(g2.save.caught.isEmpty() && g2.save.flags.isEmpty() && !g2.save.eventsReady, "progression effacée");
+        check(Files.exists(Storage.DIR.resolve("save-BPRE.properties.bak")), "copie de secours gardée");
     }
 
     private static void exportTo(Path dir) throws Exception {

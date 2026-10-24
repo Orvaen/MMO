@@ -186,6 +186,41 @@ public final class Storage {
             return s;
         }
 
+        /**
+         * Nouvelle partie : tout est remis à zéro (personnage, position, histoire, équipe, Pokédex…).
+         * L'ancienne sauvegarde est gardée à côté, en « .bak », au cas où.
+         */
+        public void reset() {
+            try {
+                if (Files.isRegularFile(file)) {
+                    Files.copy(file, file.resolveSibling(file.getFileName() + ".bak"),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                System.err.println("Copie de secours impossible : " + e.getMessage());
+            }
+            group = -1;
+            num = -1;
+            x = 0;
+            y = 0;
+            facing = 0;
+            name = "";
+            look = null;
+            trainerId = -1;
+            money = 3000;
+            playFrames = 0;
+            started = "";
+            flags.clear();
+            vars.clear();
+            eventsReady = false;
+            party.clear();
+            partyNames.clear();
+            rivalName = "";
+            seen.clear();
+            caught.clear();
+            store();
+        }
+
         /** Le personnage a-t-il déjà été créé ? */
         public boolean hasCharacter() {
             return look != null && !name.isBlank();
