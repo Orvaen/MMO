@@ -934,7 +934,7 @@ public final class SelfTest {
         check(g.top() instanceof dev.orvaen.mmo.scenes.IntroScene, "nouvelle partie : le Professeur accueille le joueur");
         g.renderWindow(1280, 800);
         boolean namedRival = false;
-        for (int i = 0; i < 20 && !(g.top() instanceof OverworldScene); i++) {
+        for (int i = 0; i < 40 && !(g.top() instanceof OverworldScene); i++) {
             if (g.top() instanceof dev.orvaen.mmo.scenes.NamingScene) {
                 g.renderWindow(1280, 800);
                 g.input().type("Régis\n");

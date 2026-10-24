@@ -276,6 +276,12 @@ public final class Game {
         scriptFadeTarget = toBlack ? 1f : 0f;
     }
 
+    /** Part du noir et revient à l'image (début d'une scène). */
+    public void fadeInFromBlack() {
+        scriptFade = 1f;
+        scriptFadeTarget = 0f;
+    }
+
     public boolean fadeScreenBusy() {
         return scriptFade != scriptFadeTarget;
     }
