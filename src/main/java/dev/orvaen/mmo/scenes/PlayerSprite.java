@@ -54,7 +54,23 @@ public final class PlayerSprite {
         }
         g.setColor(new java.awt.Color(0, 0, 0, 60));
         g.fillOval(x + 3, y + 12, 10, 4);
-        g.drawImage(overworldFrame(facing, step, running), x, y - 16 - hop, null);
+        BufferedImage img = overworldFrame(facing, step, running);
+        // En course, les frames de foulée ont la tête 1 px plus bas que la frame d'appui : à l'écran
+        // agrandi, ce rebond fait « sauter » le personnage. On garde la tête à hauteur constante.
+        int steady = running && step != 0 ? topRow(overworldFrame(facing, 0, true)) - topRow(img) : 0;
+        g.drawImage(img, x, y - 16 - hop + steady, null);
+    }
+
+    private final Map<BufferedImage, Integer> tops = new java.util.IdentityHashMap<>();
+
+    /** Première ligne non transparente d'une frame (haut de la tête). */
+    private int topRow(BufferedImage img) {
+        return tops.computeIfAbsent(img, im -> {
+            for (int y = 0; y < im.getHeight(); y++) {
+                for (int x = 0; x < im.getWidth(); x++) if (im.getRGB(x, y) >>> 24 != 0) return y;
+            }
+            return 0;
+        });
     }
 
     /** Frame de marche 16x32 (exposée pour les tests et l'écran de création). */
