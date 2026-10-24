@@ -96,6 +96,7 @@ public final class OverworldScene implements Scene {
     private boolean battling;
     private Npc speaker;
     private boolean warpedIn;
+    private final java.util.Set<Integer> despawned = new java.util.HashSet<>(); // retirés sans drapeau
 
     // États divers
     private Direction autoStep;         // sortie automatique d'une porte
@@ -166,6 +167,7 @@ public final class OverworldScene implements Scene {
         if (messageTimer > 0) messageTimer--;
         animateTiles();
         boolean scripting = vm != null;
+        respawnObjects();
         for (Npc n : npcs) n.update((x, y) -> npcCanEnter(n, x, y), scripting || n == talking);
         if (playerInPlace > 0) playerInPlace--;
         if (playerEmoteTimer > 0) playerEmoteTimer--;
@@ -532,6 +534,18 @@ public final class OverworldScene implements Scene {
         }
     }
 
+    /**
+     * Comme sur GBA : un personnage dont le drapeau vient d'être effacé par un script réapparaît
+     * (à sa place, éventuellement changée par setobjectxyperm). C'est ainsi que le Professeur, sorti de
+     * scène à l'entrée du labo, se retrouve à son bureau.
+     */
+    private void respawnObjects() {
+        for (ObjectEvent e : map.objects) {
+            if (e.flag() == 0 || game.save.flags.get(e.flag()) || despawned.contains(e.localId())) continue;
+            if (npcById(e.localId()) == null) spawn(e);
+        }
+    }
+
     private Npc spawn(ObjectEvent e) {
         if (e.graphicsId() >= FIRST_VAR_GRAPHICS) return null;
         ObjectGraphics.Sprite sprite = game.data.objects.get(e.graphicsId());
@@ -590,6 +604,7 @@ public final class OverworldScene implements Scene {
         for (int v = TEMP_VARS; v < TEMP_VARS_END; v++) game.save.vars.remove(v);
         objectPositions.clear();
         objectMovements.clear();
+        despawned.clear();
         if (map.layout.reset()) renders.remove(map.key());
         runMapScript(MAP_ON_LOAD);
         runMapScript(MAP_ON_TRANSITION);
@@ -719,10 +734,14 @@ public final class OverworldScene implements Scene {
                 if (e.localId() == localId && e.flag() != 0) game.save.flags.set(e.flag());
             }
             if (n != null) npcs.remove(n);
+            boolean flagged = false;
+            for (ObjectEvent e : map.objects) if (e.localId() == localId && e.flag() != 0) flagged = true;
+            if (!flagged) despawned.add(localId);
         }
 
         @Override
         public void addObject(int localId) {
+            despawned.remove(localId);
             if (npcById(localId) != null) return;
             for (ObjectEvent e : map.objects) if (e.localId() == localId) spawn(e);
         }

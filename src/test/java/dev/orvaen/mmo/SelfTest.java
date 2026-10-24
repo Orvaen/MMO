@@ -77,6 +77,7 @@ public final class SelfTest {
         test("Tuiles animées : les fleurs changent de frame", SelfTest::tileAnimation);
         test("Histoire : case déclencheur, mouvement scripté, variable", SelfTest::storyTrigger);
         test("Histoire : drapeaux de début de partie et sauvegarde", SelfTest::storyFlags);
+        test("Histoire : un personnage réapparaît quand son drapeau est effacé", SelfTest::storyRespawn);
         test("Pokédex : fenêtre, recherche, sélection, fermeture", SelfTest::pokedexWindow);
         test("Fenêtres : déplacer et redimensionner, place mémorisée", SelfTest::movableWindow);
         test("Carte de dresseur : n° ID, temps de jeu, ouverture depuis le menu", SelfTest::trainerCard);
@@ -630,6 +631,15 @@ public final class SelfTest {
         hold(g, Button.RIGHT, 10);                   // retour sur la case : la variable vaut 1, plus rien
         eq(4, w.playerX(), "revenu sur la case");
         check(!w.scriptRunning(), "le déclencheur ne se relance pas");
+    }
+
+    private static void storyRespawn() {
+        Game g = game();
+        OverworldScene w = world(g);
+        eq(1, w.npcs().size(), "personnage d'histoire caché au début");
+        g.save.flags.clear(SyntheticRom.STORY_FLAG);       // ce que fait clearflag dans un script
+        g.simulateFrame();
+        eq(2, w.npcs().size(), "il réapparaît dès que son drapeau est effacé");
     }
 
     private static void storyFlags() {
