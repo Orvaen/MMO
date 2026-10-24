@@ -1,1 +1,2 @@
 Enable-Native-Access: ALL-UNNAMED
+Add-Exports: java.desktop/sun.java2d.pipe.hw

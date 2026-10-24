@@ -509,8 +509,14 @@ public final class OverworldScene implements Scene {
         if (moving && distance > T) hop = (int) Math.round(Math.sin(Math.PI * exactProgress() / distance) * 10);
         // Comme sur GBA : pied en avant pendant la 1re moitié du pas, position de repos pendant la 2de
         int step = moving && distance == T && progress < distance / 2 ? (stepLeftFoot ? 1 : 2) : 0;
-        Graphics2D p = (Graphics2D) world.create();
-        p.translate(ex, ey);
+        // Joueur calé sur un pixel entier de l'écran : chaque pixel du sprite fait exactement « zoom » pixels
+        // (sinon, en nearest-neighbor, certains pixels font 2 ou 4 de large et le sprite tremble en marchant)
+        Graphics2D p = (Graphics2D) g.create();
+        p.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        p.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_OFF);
+        p.translate(Math.round(originX + ex * zoom), Math.round(originY + ey * zoom));
+        p.scale(zoom, zoom);
         avatar.drawOverworld(p, 0, 0, facing, step, hop);
         if (!moving && map.isLandEncounterAt(px, py) && map.behaviorAt(px, py) == 0x02) {
             BufferedImage below = current.below();

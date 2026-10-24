@@ -199,16 +199,21 @@ public final class Game {
     public void run(Supplier<Scene> first) {
         createWindow();
         frame.setVisible(true);
-        canvas.createBufferStrategy(2);
+        boolean vsync = VSync.createBuffers(canvas);
         canvas.requestFocus();
         push(first.get());
         preciseTimer();
 
         // La logique avance à 60 pas/s (comme la GBA) ; l'affichage suit la fréquence de l'écran
         // (60, 144 Hz…) avec une position interpolée entre deux pas : pas de saccade.
+        // Avec la V-Sync, c'est l'écran qui cadence l'affichage (show() attend le balayage) ;
+        // sinon la boucle le cadence elle-même.
         int refresh = displayRefreshRate();
         long frameNanos = 1_000_000_000L / refresh;
         long nextTick = System.nanoTime(), nextFrame = nextTick, lastTick = nextTick;
+        int vsyncChecks = 0;
+        long vsyncStart = System.nanoTime();
+        System.out.println("Affichage : " + refresh + " Hz, V-Sync " + (vsync ? "demandée" : "indisponible"));
         while (running) {
             long now = System.nanoTime();
             int ticks = 0;
@@ -220,6 +225,21 @@ public final class Game {
             if (now - nextTick > FRAME_NANOS * 10) { // rattrapage après une pause (fenêtre déplacée…)
                 nextTick = now + FRAME_NANOS;
                 lastTick = now;
+            }
+            if (vsync) {
+                interpolation = Math.max(0, Math.min(1, (now - lastTick) / (double) FRAME_NANOS));
+                draw();
+                // Le pilote respecte-t-il vraiment la V-Sync ? Si les images partent bien plus vite que
+                // l'écran ne les affiche, on reprend la cadence à la main.
+                if (++vsyncChecks == 120) {
+                    double perFrame = (System.nanoTime() - vsyncStart) / 120.0;
+                    if (perFrame < frameNanos * 0.6) {
+                        vsync = false;
+                        nextFrame = System.nanoTime();
+                        System.out.println("V-Sync ignorée par le pilote : cadence par minuterie");
+                    }
+                }
+                continue;
             }
             if (now >= nextFrame) {
                 interpolation = Math.max(0, Math.min(1, (now - lastTick) / (double) FRAME_NANOS));
@@ -290,6 +310,7 @@ public final class Game {
     private void tick() {
         input.poll();
         if (input.zoomSteps() != 0) adjustZoom(input.zoomSteps());
+        if (input.fpsToggled()) showFps = !showFps;
         sizeScreen();
         if (fadeDir != 0) {
             fade += fadeDir * 0.1f;
@@ -311,6 +332,7 @@ public final class Game {
     }
 
     private void draw() {
+        countFrame();
         drawScreen();
         BufferStrategy bs = canvas.getBufferStrategy();
         if (bs == null) return;
@@ -335,8 +357,9 @@ public final class Game {
         // Défilement au pixel de l'écran près : la scène indique la fraction de pixel virtuel de sa caméra
         Scene base = visibleScenes().isEmpty() ? null : visibleScenes().get(0);
         double fx = base != null && screenFills ? base.subpixelX() : 0, fy = base != null && screenFills ? base.subpixelY() : 0;
-        blitX = (int) Math.round((cw - w) / 2.0 - fx * scale);
-        blitY = (int) Math.round((ch - h) / 2.0 - fy * scale);
+        // Arrondis séparés : le centre reste fixe, seul le décalage de caméra varie (au pixel près)
+        blitX = (int) Math.round((cw - w) / 2.0) - (int) Math.round(fx * scale);
+        blitY = (int) Math.round((ch - h) / 2.0) - (int) Math.round(fy * scale);
         blitScale = scale;
         out.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         out.drawImage(screen, blitX, blitY, w, h, null);
@@ -352,6 +375,32 @@ public final class Game {
         if (fade > 0) {
             out.setColor(new Color(0, 0, 0, Math.min(1f, fade)));
             out.fillRect(0, 0, cw, ch);
+        }
+        if (showFps) {
+            String fps = String.format("%.0f FPS", measuredFps);
+            out.setFont(HiUi.font(13, true));
+            out.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int tw = out.getFontMetrics().stringWidth(fps);
+            out.setColor(new Color(0, 0, 0, 150));
+            out.drawString(fps, cw - tw - 9, 21);
+            out.setColor(Color.WHITE);
+            out.drawString(fps, cw - tw - 10, 20);
+        }
+    }
+
+    // Compteur d'images par seconde (F3), comme en haut à droite de PokeMMO
+    private boolean showFps;
+    private double measuredFps;
+    private long fpsWindowStart = System.nanoTime();
+    private int fpsFrames;
+
+    private void countFrame() {
+        fpsFrames++;
+        long now = System.nanoTime();
+        if (now - fpsWindowStart >= 500_000_000L) {
+            measuredFps = fpsFrames * 1e9 / (now - fpsWindowStart);
+            fpsFrames = 0;
+            fpsWindowStart = now;
         }
     }
 

@@ -32,6 +32,8 @@
                         <manifestEntries>
                             <!-- appels natifs pour la barre de titre sombre sous Windows -->
                             <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+                            <!-- synchronisation verticale (V-Sync) de l'affichage -->
+                            <Add-Exports>java.desktop/sun.java2d.pipe.hw</Add-Exports>
                         </manifestEntries>
                     </archive>
                 </configuration>
