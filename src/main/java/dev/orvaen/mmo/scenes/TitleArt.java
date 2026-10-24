@@ -134,6 +134,7 @@ final class TitleArt {
         boolean blinkOn = showPressStart && pressStartVisible();
         BufferedImage text = blinkOn ? gfx.pressStart : gfx.copyrightOnly;
         if (text != null) g.drawImage(text, 0, 0, null);
+        hideOriginalFooter(g);
         g.drawImage(gfx.monster, 0, 0, null);
         g.drawImage(gfx.logo, 0, 0, null);
         g.dispose();
@@ -169,6 +170,51 @@ final class TitleArt {
         return 0xFF000000 | r << 16 | gr << 8 | b;
     }
 
+    // ------------------------------------------------------------------ bas de l'écran
+
+    /** Texte affiché dans la bande du bas, à la place du copyright du jeu d'origine. */
+    static final String FOOTER_TEXT = "ORVAEN MMO";
+    /** La bande du bas : les 10 dernières lignes de pixels de l'écran. */
+    private static final int FOOTER_Y = TitleGraphics.HEIGHT - 10, FOOTER_H = 10;
+    private int footerColor = -1;
+
+    /** Couleur de la bande du bas (la plus fréquente sur sa ligne du milieu), calculée une fois. */
+    private int footerColor() {
+        if (footerColor == -1) {
+            java.util.Map<Integer, Integer> count = new java.util.HashMap<>();
+            BufferedImage layer = gfx.copyrightOnly != null ? gfx.copyrightOnly : gfx.border;
+            for (int x = 0; layer != null && x < TitleGraphics.WIDTH; x++) {
+                int c = layer.getRGB(x, FOOTER_Y + FOOTER_H / 2);
+                if ((c >>> 24) != 0) count.merge(c, 1, Integer::sum);
+            }
+            footerColor = count.entrySet().stream().max(java.util.Map.Entry.comparingByValue())
+                    .map(java.util.Map.Entry::getKey).orElse(0xFF000000);
+        }
+        return footerColor;
+    }
+
+    /** Efface le texte d'origine de la bande du bas (on garde sa couleur). */
+    private void hideOriginalFooter(Graphics2D g) {
+        g.setColor(new java.awt.Color(footerColor(), true));
+        g.fillRect(0, FOOTER_Y, TitleGraphics.WIDTH, FOOTER_H);
+    }
+
+    /** Notre texte dans la bande du bas, net à la taille de la fenêtre, avec une ombre comme le jeu. */
+    private void drawFooterText(Graphics2D g, java.awt.Rectangle r) {
+        double px = r.height / (double) TitleGraphics.HEIGHT;          // taille d'un pixel GBA à l'écran
+        Graphics2D t = (Graphics2D) g.create();
+        t.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        t.setFont(dev.orvaen.mmo.engine.HiUi.tracked((float) (7 * px), true, 0.12f));
+        java.awt.FontMetrics fm = t.getFontMetrics();
+        float x = (float) (r.x + (r.width - fm.stringWidth(FOOTER_TEXT)) / 2.0);
+        float y = (float) (r.y + (FOOTER_Y + FOOTER_H / 2.0) * px + (fm.getAscent() - fm.getDescent()) / 2.0);
+        t.setColor(new java.awt.Color(0, 0, 0, 140));
+        t.drawString(FOOTER_TEXT, x + (float) px * 0.6f, y + (float) px * 0.6f);
+        t.setColor(new java.awt.Color(0xF0F0E8));
+        t.drawString(FOOTER_TEXT, x, y);
+        t.dispose();
+    }
+
     private BufferedImage edges;
 
     /** Le décor fixe (cadre + bandes du texte), pour prolonger l'image sur les côtés. */
@@ -178,6 +224,7 @@ final class TitleArt {
             Graphics2D g = edges.createGraphics();
             if (gfx.border != null) g.drawImage(gfx.border, 0, 0, null);
             if (gfx.copyrightOnly != null) g.drawImage(gfx.copyrightOnly, 0, 0, null);
+            hideOriginalFooter(g);
             g.dispose();
         }
         return edges;
@@ -208,5 +255,6 @@ final class TitleArt {
                     TitleGraphics.WIDTH - 1, 0, TitleGraphics.WIDTH, TitleGraphics.HEIGHT, null);
         }
         g.drawImage(img, r.x, r.y, r.width, r.height, null);
+        drawFooterText(g, r);
     }
 }

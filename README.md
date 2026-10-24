@@ -70,7 +70,7 @@ Le dossier `export/` est ignoré par git.
 
 Au lancement, **le vrai écran titre de ta cartouche**, lu dans ta ROM : logo, Dracaufeu (ou Florizarre
 sur Vert Feuille), flammes qui montent, reflet qui balaie le logo et « PRESS START » qui clignote, avec
-la musique du titre. Start (ou un clic) ouvre le menu, dans des cadres blancs façon Rouge Feu :
+la musique du titre. La bande du bas affiche « ORVAEN MMO » à la place du copyright du jeu. Start (ou un clic) ouvre le menu, dans des cadres blancs façon Rouge Feu :
 **Continuer** (nom du joueur, temps de jeu, Pokédex), **Modifier le personnage**, **Nouvelle partie**
 (avec confirmation, une copie de secours est gardée) et **Quitter**. B revient à l'écran titre.
 
