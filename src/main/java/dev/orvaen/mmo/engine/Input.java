@@ -126,6 +126,8 @@ public final class Input extends KeyAdapter {
         pendingTyped.setLength(0);
         mouseX = liveMouseX;
         mouseY = liveMouseY;
+        savedMouseX = liveMouseX;
+        savedMouseY = liveMouseY;
         mousePressed = livePresses > 0;
         mouseReleased = liveReleases > 0;
         mouseDown = liveMouseDown || mousePressed;
@@ -143,6 +145,31 @@ public final class Input extends KeyAdapter {
             pressed.put(b, down && h == 0);
             held.put(b, down ? h + 1 : 0);
         }
+    }
+
+    /** Une fenêtre a pris la souris : le jeu ne la voit pas pendant cette frame. */
+    public void consumeMouse() {
+        mousePressed = false;
+        mouseReleased = false;
+        mouseDown = false;
+        wheel = 0;
+        mouseX = -10000;
+        mouseY = -10000;
+    }
+
+    private int savedMouseX, savedMouseY;
+
+    /** Position réelle de la souris (même quand le jeu ne la voit pas). */
+    public int rawMouseX() { return savedMouseX; }
+    public int rawMouseY() { return savedMouseY; }
+
+    /** Une fenêtre saisit du texte : les touches ne vont pas au jeu pendant cette frame. */
+    public void consumeKeys() {
+        for (Button b : Button.values()) {
+            pressed.put(b, false);
+            held.put(b, 0);
+        }
+        frameTyped = "";
     }
 
     public synchronized void releaseAll() {

@@ -93,6 +93,70 @@ public final class Game {
         if (canvas != null) canvas.setCursor(java.awt.Cursor.getPredefinedCursor(type));
     }
 
+    // ------------------------------------------------------------------ fenêtres non bloquantes
+
+    private final java.util.List<UiWindow> windows = new java.util.ArrayList<>(); // la dernière est devant
+
+    /** Ouvre une fenêtre (ou la ferme si elle est déjà ouverte, comme un raccourci de PokeMMO). */
+    public void toggleWindow(UiWindow w) {
+        for (UiWindow o : windows) {
+            if (o.id().equals(w.id())) {
+                o.frame().close();
+                windows.remove(o);
+                return;
+            }
+        }
+        w.frame().cascade(windows.size());
+        windows.add(w);
+    }
+
+    public void openWindow(UiWindow w) {
+        windows.removeIf(o -> o.id().equals(w.id()));
+        w.frame().cascade(windows.size());
+        windows.add(w);
+    }
+
+    public java.util.List<UiWindow> windows() {
+        return java.util.Collections.unmodifiableList(windows);
+    }
+
+    public boolean windowOpen(String id) {
+        for (UiWindow o : windows) if (o.id().equals(id)) return true;
+        return false;
+    }
+
+    /** Souris et clavier : d'abord les fenêtres (de l'avant vers l'arrière), le reste au jeu. */
+    private void updateWindows() {
+        if (windows.isEmpty()) return;
+        int mx = input.mouseX(), my = input.mouseY();
+        UiWindow over = null;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            UiWindow w = windows.get(i);
+            if (w.frame().dragging() || w.frame().grabs(mx, my)) {
+                over = w;
+                break;
+            }
+        }
+        if (over != null && input.mousePressed() && windows.get(windows.size() - 1) != over) {
+            windows.remove(over);
+            windows.add(over);                      // clic : la fenêtre passe devant
+        }
+        UiWindow front = windows.get(windows.size() - 1);
+        boolean esc = input.typed().indexOf('\u001b') >= 0 && !front.capturesKeyboard();
+        for (UiWindow w : new java.util.ArrayList<>(windows)) {
+            boolean focused = w == front;
+            boolean keep = w.update(input, focused && (over == null || over == w));
+            if (focused && esc) keep = false;
+            if (!keep) {
+                w.frame().close();
+                windows.remove(w);
+            }
+        }
+        if (over != null) input.consumeMouse();
+        if (!windows.isEmpty() && windows.get(windows.size() - 1).capturesKeyboard()) input.consumeKeys();
+        if (esc) input.consumeKeys();
+    }
+
     public Scene top() {
         return scenes.peek();
     }
@@ -356,6 +420,7 @@ public final class Game {
                 break;
             }
         }
+        updateWindows();
         if (fadeDir != 0) {
             fade += fadeDir * 0.1f;
             if (fade >= 1f) {
@@ -435,6 +500,13 @@ public final class Game {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
             s.renderHiRes(g, cw, ch);
+            g.dispose();
+        }
+        for (UiWindow win : windows) {
+            Graphics2D g = (Graphics2D) out.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            win.render(g, cw, ch, win == windows.get(windows.size() - 1));
             g.dispose();
         }
         float shade = Math.max(fade, scriptFade);

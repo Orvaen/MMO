@@ -22,6 +22,12 @@ public final class HiWindow {
     private final double defW, defH, minW, minH;   // en unités (multipliées par l'échelle)
     private double x, y, w, h;
     private boolean placed;
+    private int cascade;
+
+    /** Décale la première ouverture (sans place mémorisée) pour ne pas recouvrir les autres fenêtres. */
+    public void cascade(int n) {
+        cascade = n;
+    }
     private Drag drag = Drag.NONE;
     private double grabX, grabY, startX, startY, startW, startH;
     private int frame;
@@ -37,7 +43,8 @@ public final class HiWindow {
 
     /** Échelle de l'interface (polices, marges) selon la hauteur de la fenêtre du jeu. */
     public double scale() {
-        return Math.max(0.75, Math.min(1.5, game.viewHeight() / 760.0));
+        // Interface compacte comme PokeMMO : elle grossit peu avec la taille de la fenêtre
+        return Math.max(0.8, Math.min(1.15, game.viewHeight() / 900.0));
     }
 
     private void place() {
@@ -54,8 +61,8 @@ public final class HiWindow {
             } else {
                 w = Math.min(vw - 40, defW * s);
                 h = Math.min(vh - 40, defH * s);
-                x = (vw - w) / 2;
-                y = (vh - h) / 2;
+                x = (vw - w) / 2 + cascade * 36 * s;
+                y = (vh - h) / 2 + cascade * 30 * s;
             }
             placed = true;
         }
@@ -101,6 +108,13 @@ public final class HiWindow {
 
     public boolean dragging() {
         return drag != Drag.NONE;
+    }
+
+    /** La souris est sur la fenêtre (ou sur un bord qu'on peut tirer). */
+    public boolean grabs(double mx, double my) {
+        place();
+        double e = EDGE * scale();
+        return mx >= x - e && mx <= x + w + e && my >= y - e && my <= y + h + e;
     }
 
     private Drag hit(double mx, double my) {

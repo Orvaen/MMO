@@ -6,7 +6,7 @@ import dev.orvaen.mmo.engine.HiUi;
 import dev.orvaen.mmo.engine.HiWindow;
 import dev.orvaen.mmo.engine.Input;
 import dev.orvaen.mmo.engine.Input.Button;
-import dev.orvaen.mmo.engine.Scene;
+import dev.orvaen.mmo.engine.UiWindow;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -28,9 +28,9 @@ import java.util.Map;
  * l'ordre national (silhouettes pour celles jamais vues), choix de la région, recherche par nom ou
  * numéro, fiche détaillée à droite, compteurs « vus » et « capturés ».
  */
-public final class DexScene implements Scene {
+public final class DexWindow implements UiWindow {
 
-    private static final double HEADER = HiWindow.HEADER, CELL_W = 66, CELL_H = 78;
+    private static final double HEADER = HiWindow.HEADER, CELL_W = 54, CELL_H = 66, DETAIL_W = 196;
     private static final String[] STAT_LABELS = {"PV", "Attaque", "Défense", "Atq. Spé.", "Déf. Spé.", "Vitesse"};
 
     /** Régions proposées, par plage de numéros nationaux. */
@@ -57,9 +57,9 @@ public final class DexScene implements Scene {
     private double scroll;        // en lignes
     private int frame;
 
-    public DexScene(Game game) {
+    public DexWindow(Game game) {
         this.game = game;
-        this.win = new HiWindow(game, "pokedex", 900, 610, 560, 400);
+        this.win = new HiWindow(game, "pokedex", 660, 470, 470, 340);
         this.all = game.data.species.nationalOrder();
         int maxNational = 0;
         for (Species s : all) maxNational = Math.max(maxNational, national(s));
@@ -67,9 +67,21 @@ public final class DexScene implements Scene {
         refilter();
     }
 
+    private boolean closed;
+
     @Override
-    public boolean isOverlay() {
-        return true;
+    public String id() {
+        return "pokedex";
+    }
+
+    @Override
+    public HiWindow frame() {
+        return win;
+    }
+
+    @Override
+    public boolean capturesKeyboard() {
+        return searchFocus;
     }
 
     private int national(Species s) {
@@ -94,32 +106,32 @@ public final class DexScene implements Scene {
 
     private Rectangle2D panel() { return win.bounds(); }
     private Rectangle2D closeButton() { return win.closeButton(); }
-    private Rectangle2D dropdown() { return rel(14, HEADER + 12, 200, 30); }
-    private Rectangle2D dropdownItem(int i) { return rel(14, HEADER + 46 + i * 28, 200, 28); }
+    private Rectangle2D dropdown() { return rel(12, HEADER + 10, 160, 26); }
+    private Rectangle2D dropdownItem(int i) { return rel(12, HEADER + 40 + i * 26, 160, 26); }
 
     private Rectangle2D search() {
-        Rectangle2D r = rel(224, HEADER + 12, 250, 30);
+        Rectangle2D r = rel(180, HEADER + 10, 220, 26);
         double max = detail().getX() - 12 * scale() - r.getX();
         return new Rectangle2D.Double(r.getX(), r.getY(), Math.max(60 * scale(), Math.min(r.getWidth(), max)), r.getHeight());
     }
 
     private Rectangle2D detail() {
         Rectangle2D b = win.bounds();
-        double sc = scale(), dw = 236 * sc;
-        return new Rectangle2D.Double(b.getMaxX() - 14 * sc - dw, b.getY() + (HEADER + 12) * sc, dw,
-                b.getHeight() - (HEADER + 12 + 52) * sc);
+        double sc = scale(), dw = DETAIL_W * sc;
+        return new Rectangle2D.Double(b.getMaxX() - 12 * sc - dw, b.getY() + (HEADER + 10) * sc, dw,
+                b.getHeight() - (HEADER + 10 + 40) * sc);
     }
 
     private Rectangle2D grid() {
         Rectangle2D b = win.bounds();
-        double sc = scale(), gx = b.getX() + 14 * sc;
-        return new Rectangle2D.Double(gx, b.getY() + (HEADER + 54) * sc, detail().getX() - 12 * sc - gx,
-                b.getHeight() - (HEADER + 54 + 52) * sc);
+        double sc = scale(), gx = b.getX() + 10 * sc;
+        return new Rectangle2D.Double(gx, b.getY() + (HEADER + 44) * sc, detail().getX() - 10 * sc - gx,
+                b.getHeight() - (HEADER + 44 + 40) * sc);
     }
 
     /** Colonnes de la grille : autant qu'il en tient dans la largeur de la fenêtre. */
     private int cols() {
-        return Math.max(2, (int) Math.floor((grid().getWidth() - 14 * scale()) / (CELL_W * scale())));
+        return Math.max(2, (int) Math.floor((grid().getWidth() - 10 * scale()) / (CELL_W * scale())));
     }
 
     private int visibleRows() {
@@ -186,9 +198,11 @@ public final class DexScene implements Scene {
     }
 
     @Override
-    public void update(Input in) {
+    public boolean update(Input in, boolean focused) {
         frame++;
-        if (win.update(in)) return;
+        if (closed) return false;
+        if (!focused) return true;
+        if (win.update(in)) return true;
         int mx = in.mouseX(), my = in.mouseY();
 
         if (searchFocus) {
@@ -212,10 +226,7 @@ public final class DexScene implements Scene {
         }
 
         if (in.mousePressed()) {
-            if (closeButton().contains(mx, my)) {
-                close();
-                return;
-            }
+            if (closeButton().contains(mx, my)) return false;
             if (dropdownOpen) {
                 for (int i = 0; i < regions.size(); i++) {
                     if (dropdownItem(i).contains(mx, my)) {
@@ -226,12 +237,12 @@ public final class DexScene implements Scene {
                     }
                 }
                 dropdownOpen = false;
-                return;
+                return true;
             }
             if (dropdown().contains(mx, my)) {
                 dropdownOpen = true;
                 searchFocus = false;
-                return;
+                return true;
             }
             searchFocus = search().contains(mx, my);
             if (grid().contains(mx, my)) {
@@ -245,35 +256,11 @@ public final class DexScene implements Scene {
             scroll = Math.max(0, Math.min(Math.max(0, rows() - visibleRows()), scroll + in.wheel()));
         }
 
-        // En recherche, les lettres vont dans le champ : Maj (B), X (START) ou ZQSD ne doivent rien faire
-        // d'autre ; Échap ou Entrée quittent le champ (gérés plus haut).
-        boolean keys = !searchFocus || in.typed().isEmpty();
-        if (!searchFocus && (in.pressed(Button.B) || in.pressed(Button.START))) {
-            if (dropdownOpen) dropdownOpen = false;
-            else close();
-            return;
-        }
-        if (shown.isEmpty()) return;
-        int cols = cols();
-        int before = selected;
-        if (keys) {
-            if (in.repeat(Button.RIGHT)) selected = Math.min(shown.size() - 1, selected + 1);
-            if (in.repeat(Button.LEFT)) selected = Math.max(0, selected - 1);
-            if (in.repeat(Button.DOWN)) selected = Math.min(shown.size() - 1, selected + cols);
-            if (in.repeat(Button.UP)) selected = Math.max(0, selected - cols);
-            if (in.repeat(Button.R)) selected = Math.min(shown.size() - 1, selected + cols * visibleRows());
-            if (in.repeat(Button.L)) selected = Math.max(0, selected - cols * visibleRows());
-        }
-        if (selected != before) {
-            int row = selected / cols;
-            if (row < scroll) scroll = row;
-            if (row >= scroll + visibleRows()) scroll = row - visibleRows() + 1;
-        }
+        return true;
     }
 
     private void close() {
-        win.close();
-        game.pop();
+        closed = true;
     }
 
     private int firstVisible() {
@@ -283,17 +270,10 @@ public final class DexScene implements Scene {
     // ------------------------------------------------------------------ rendu
 
     @Override
-    public void render(Graphics2D g) {
-        // tout est en haute résolution, par-dessus le monde
-    }
-
-    @Override
-    public void renderHiRes(Graphics2D g, int w, int h) {
+    public void render(Graphics2D g, int w, int h, boolean focused) {
         double s = scale();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setColor(new Color(0, 0, 0, 90));
-        g.fillRect(0, 0, w, h);
 
         Rectangle2D p = panel();
         win.paintFrame(g, "Pokédex");
@@ -310,7 +290,7 @@ public final class DexScene implements Scene {
         boolean over = d.contains(game.input().mouseX(), game.input().mouseY());
         HiUi.fill(g, over || dropdownOpen ? HiUi.SELECTOR_HOVER : HiUi.SELECTOR, d.getX(), d.getY(), d.getWidth(), d.getHeight(), 4 * s);
         HiUi.stroke(g, HiUi.SELECTOR_BORDER, d.getX(), d.getY(), d.getWidth(), d.getHeight(), 4 * s, 1f);
-        g.setFont(HiUi.font((float) (13 * s), false));
+        g.setFont(HiUi.font((float) (12 * s), false));
         g.setColor(HiUi.TEXT);
         HiUi.centered(g, regions.get(region).name, d.getX(), d.getY(), d.getWidth() - 18 * s, d.getHeight());
         HiUi.updown(g, HiUi.TEXT, d.getMaxX() - 14 * s, d.getCenterY());
@@ -318,11 +298,11 @@ public final class DexScene implements Scene {
         Rectangle2D q = search();
         HiUi.fill(g, HiUi.CELL, q.getX(), q.getY(), q.getWidth(), q.getHeight(), 4 * s);
         HiUi.stroke(g, searchFocus ? HiUi.ACCENT : HiUi.SELECTOR_BORDER, q.getX(), q.getY(), q.getWidth(), q.getHeight(), 4 * s, searchFocus ? 1.6f : 1f);
-        g.setFont(HiUi.font((float) (13 * s), false));
+        g.setFont(HiUi.font((float) (12 * s), false));
         float ty = (float) (q.getCenterY() + g.getFontMetrics().getAscent() / 2.0 - 2 * s);
         if (query.isEmpty() && !searchFocus) {
             g.setColor(HiUi.MUTED);
-            g.drawString("Rechercher un nom ou un n°", (float) (q.getX() + 10 * s), ty);
+            g.drawString("Rechercher…", (float) (q.getX() + 10 * s), ty);
         } else {
             g.setColor(HiUi.TEXT);
             String t = query + (searchFocus && frame / 30 % 2 == 0 ? "|" : "");
@@ -346,12 +326,11 @@ public final class DexScene implements Scene {
             } else if (hover) {
                 HiUi.fill(g, HiUi.SELECTOR_HOVER, r.getX() + 2 * s, r.getY() + 2 * s, r.getWidth() - 4 * s, r.getHeight() - 4 * s, 6 * s);
             }
-            double size = 58 * s;
-            drawSpecies(g, sp, r.getCenterX() - size / 2, r.getY() + 3 * s, size);
-            if (game.save.caught.contains(sp.id())) ball(g, r.getMaxX() - 15 * s, r.getY() + 7 * s, 9 * s);
-            g.setFont(HiUi.font((float) (12 * s), false));
-            g.setColor(i == selected ? Color.WHITE : HiUi.TEXT);
-            HiUi.centered(g, String.format("%03d", national(sp)), r.getX(), r.getY() + 60 * s, r.getWidth(), 16 * s);
+            drawFit(g, sp, r.getCenterX(), r.getY() + 4 * s, 44 * s, s);
+            if (game.save.caught.contains(sp.id())) ball(g, r.getMaxX() - 12 * s, r.getY() + 8 * s, 8 * s);
+            g.setFont(HiUi.font((float) (11 * s), false));
+            g.setColor(i == selected ? Color.WHITE : HiUi.MUTED);
+            HiUi.centered(g, String.format("%03d", national(sp)), r.getX(), r.getY() + 48 * s, r.getWidth(), 14 * s);
         }
         g.setClip(clip);
         if (shown.isEmpty()) {
@@ -368,6 +347,38 @@ public final class DexScene implements Scene {
             double bh = Math.max(24 * s, th * vis / rows), by = area.getY() + (th - bh) * scroll / (rows - vis);
             HiUi.fill(g, HiUi.SELECTOR_HOVER, tx, by, 5 * s, bh, 3 * s);
         }
+    }
+
+    private final Map<Integer, int[]> bounds = new HashMap<>();
+
+    /**
+     * Sprite recadré sur le Pokémon (sans les marges vides du 64x64) et tenu dans {@code box} pixels :
+     * taille d'origine (nette) s'il tient, sinon réduit en douceur.
+     */
+    private void drawFit(Graphics2D g, Species sp, double cx, double top, double box, double s) {
+        BufferedImage img = known(sp) ? game.data.species.frontSprite(sp.id()) : silhouette(sp);
+        if (img == null) return;
+        int[] b = bounds.computeIfAbsent(sp.id(), id -> {
+            BufferedImage src = game.data.species.frontSprite(id);
+            int x0 = src.getWidth(), y0 = src.getHeight(), x1 = -1, y1 = -1;
+            for (int y = 0; y < src.getHeight(); y++) {
+                for (int x = 0; x < src.getWidth(); x++) {
+                    if (src.getRGB(x, y) >>> 24 == 0) continue;
+                    x0 = Math.min(x0, x);
+                    y0 = Math.min(y0, y);
+                    x1 = Math.max(x1, x);
+                    y1 = Math.max(y1, y);
+                }
+            }
+            return x1 < 0 ? new int[]{0, 0, src.getWidth(), src.getHeight()} : new int[]{x0, y0, x1 - x0 + 1, y1 - y0 + 1};
+        });
+        double k = Math.min(Math.floor(s * 2) / 2, box / Math.max(b[2], b[3]));
+        boolean crisp = Math.abs(k - Math.rint(k)) < 0.01 && k >= 1;
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, crisp
+                ? RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR : RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        int dw = (int) Math.round(b[2] * k), dh = (int) Math.round(b[3] * k);
+        int dx = (int) Math.round(cx - dw / 2.0), dy = (int) Math.round(top + (box - dh));
+        g.drawImage(img, dx, dy, dx + dw, dy + dh, b[0], b[1], b[0] + b[2], b[1] + b[3], null);
     }
 
     /** Sprite (vu) ou silhouette sombre (jamais vu), net si l'échelle est entière. */
@@ -419,13 +430,13 @@ public final class DexScene implements Scene {
         g.drawString(String.format("N° %03d", national(sp)), (float) x, (float) (y + 12 * s));
         if (game.save.caught.contains(sp.id())) ball(g, x + w - 6 * s, y + 7 * s, 11 * s);
 
-        double box = Math.min(w, 128 * s);
+        double box = Math.min(w, 112 * s);
         double bx = x + (w - box) / 2, by = y + 22 * s;
         HiUi.fill(g, new Color(0x2E3147), bx, by, box, box, 8 * s);
-        drawSpecies(g, sp, bx + (box - 128 * s) / 2, by + (box - 128 * s) / 2, 128 * s);
+        drawFit(g, sp, bx + box / 2, by + 8 * s, box - 16 * s, Math.max(1, Math.floor(s * 2)));
 
         double ty = by + box + 26 * s;
-        g.setFont(HiUi.font((float) (18 * s), true));
+        g.setFont(HiUi.font((float) (15 * s), true));
         g.setColor(Color.WHITE);
         HiUi.centered(g, known ? sp.name() : "???", x, ty - 18 * s, w, 24 * s);
         ty += 16 * s;
@@ -435,38 +446,37 @@ public final class DexScene implements Scene {
             HiUi.centered(g, "Pas encore rencontré", x, ty, w, 22 * s);
             return;
         }
-        double bw = sp.hasSecondType() ? (w - 8 * s) / 2 : Math.min(w, 110 * s);
+        double bw = sp.hasSecondType() ? (w - 6 * s) / 2 : Math.min(w, 90 * s);
         double bx2 = sp.hasSecondType() ? x : x + (w - bw) / 2;
-        typeBadge(g, sp.type1(), bx2, ty, bw, 22 * s, s);
-        if (sp.hasSecondType()) typeBadge(g, sp.type2(), x + bw + 8 * s, ty, bw, 22 * s, s);
-        ty += 36 * s;
+        typeBadge(g, sp.type1(), bx2, ty, bw, 18 * s, s);
+        if (sp.hasSecondType()) typeBadge(g, sp.type2(), x + bw + 6 * s, ty, bw, 18 * s, s);
+        ty += 28 * s;
 
         int[] stats = {sp.hp(), sp.attack(), sp.defense(), sp.spAttack(), sp.spDefense(), sp.speed()};
         g.setFont(HiUi.font((float) (12 * s), false));
+        g.setFont(HiUi.font((float) (11 * s), false));
         for (int i = 0; i < stats.length; i++) {
-            double ry = ty + i * 22 * s;
+            double ry = ty + i * 18 * s;
             g.setColor(HiUi.MUTED);
             g.drawString(STAT_LABELS[i], (float) x, (float) (ry + 11 * s));
             g.setColor(HiUi.TEXT);
             String v = String.valueOf(stats[i]);
-            g.drawString(v, (float) (x + 92 * s - g.getFontMetrics().stringWidth(v)), (float) (ry + 11 * s));
-            double barX = x + 100 * s, barW = w - 100 * s;
-            HiUi.fill(g, new Color(0x2E3147), barX, ry + 3 * s, barW, 8 * s, 4 * s);
-            HiUi.fill(g, statColor(stats[i]), barX, ry + 3 * s, barW * Math.min(1, stats[i] / 180.0), 8 * s, 4 * s);
+            g.drawString(v, (float) (x + 82 * s - g.getFontMetrics().stringWidth(v)), (float) (ry + 11 * s));
+            double barX = x + 88 * s, barW = w - 88 * s;
+            HiUi.fill(g, new Color(0x2E3147), barX, ry + 4 * s, barW, 6 * s, 3 * s);
+            HiUi.fill(g, statColor(stats[i]), barX, ry + 4 * s, barW * Math.min(1, stats[i] / 180.0), 6 * s, 3 * s);
         }
-        ty += stats.length * 22 * s + 6 * s;
+        ty += stats.length * 18 * s + 4 * s;
         g.setColor(HiUi.MUTED);
         g.drawString("Total", (float) x, (float) (ty + 11 * s));
         g.setColor(Color.WHITE);
         String total = String.valueOf(sp.baseStatTotal());
-        g.drawString(total, (float) (x + 92 * s - g.getFontMetrics().stringWidth(total)), (float) (ty + 11 * s));
-        g.setColor(HiUi.MUTED);
-        g.drawString("Capture : " + sp.catchRate(), (float) (x + 110 * s), (float) (ty + 11 * s));
+        g.drawString(total, (float) (x + 82 * s - g.getFontMetrics().stringWidth(total)), (float) (ty + 11 * s));
     }
 
     private static void typeBadge(Graphics2D g, int type, double x, double y, double w, double h, double s) {
         HiUi.fill(g, new Color(Species.typeColor(type)), x, y, w, h, h);
-        g.setFont(HiUi.font((float) (12 * s), true));
+        g.setFont(HiUi.font((float) (11 * s), true));
         g.setColor(Color.WHITE);
         HiUi.centered(g, Species.typeName(type), x, y, w, h);
     }
@@ -479,7 +489,7 @@ public final class DexScene implements Scene {
     }
 
     private void drawFooter(Graphics2D g, double s, Rectangle2D p) {
-        double y = p.getMaxY() - 40 * s;
+        double y = p.getMaxY() - 32 * s;
         g.setColor(HiUi.PANEL_BORDER);
         g.fill(new Rectangle2D.Double(p.getX() + 14 * s, y, p.getWidth() - 28 * s, 1));
         int total = 0, seen = 0, caught = 0;
@@ -491,15 +501,11 @@ public final class DexScene implements Scene {
             if (known(sp)) seen++;
             if (game.save.caught.contains(sp.id())) caught++;
         }
-        g.setFont(HiUi.font((float) (13 * s), false));
+        g.setFont(HiUi.font((float) (12 * s), false));
         g.setColor(HiUi.TEXT);
-        float ty = (float) (y + 26 * s);
-        g.drawString("Vus : " + seen + " / " + total, (float) (p.getX() + 18 * s), ty);
-        g.drawString("Capturés : " + caught + " / " + total, (float) (p.getX() + 190 * s), ty);
-        g.setColor(HiUi.MUTED);
-        String hint = "Flèches : parcourir · Molette : défiler · Échap : fermer";
-        double hx = p.getMaxX() - 18 * s - g.getFontMetrics().stringWidth(hint);
-        if (hx > p.getX() + 380 * s) g.drawString(hint, (float) hx, ty);
+        float ty = (float) (y + 21 * s);
+        g.drawString("Vus : " + seen + " / " + total, (float) (p.getX() + 14 * s), ty);
+        g.drawString("Capturés : " + caught + " / " + total, (float) (p.getX() + 150 * s), ty);
     }
 
     private void drawDropdown(Graphics2D g, double s) {

@@ -16,7 +16,7 @@ import dev.orvaen.mmo.rom.RomCheck;
 import dev.orvaen.mmo.rom.RomException;
 import dev.orvaen.mmo.scenes.BattleScene;
 import dev.orvaen.mmo.scenes.CharacterCreatorScene;
-import dev.orvaen.mmo.scenes.DexScene;
+import dev.orvaen.mmo.scenes.DexWindow;
 import dev.orvaen.mmo.scenes.DialogueScene;
 import dev.orvaen.mmo.scenes.Direction;
 import dev.orvaen.mmo.scenes.OverworldScene;
@@ -501,8 +501,8 @@ public final class SelfTest {
         Game g = game();
         g.save.seen.add(2);
         g.renderWindow(1280, 720);
-        DexScene dex = new DexScene(g);
-        g.push(dex);
+        DexWindow dex = new DexWindow(g);
+        g.openWindow(dex);
         g.simulateFrame();
         eq(g.data.species.all().size(), dex.shownCount(), "toutes les espèces affichées");
         click(g, dex.anchor("search"));
@@ -519,8 +519,27 @@ public final class SelfTest {
         click(g, dex.anchor("cell:1"));
         eq(2, dex.selectedSpecies().id(), "clic sur une case");
         check(g.renderWindow(1280, 720).getRGB(640, 30) != 0, "rendu");
+        // Pendant ce temps, le jeu continue : on peut marcher avec le Pokédex ouvert
+        OverworldScene w = world(g);
+        int x0 = w.playerX();
+        hold(g, Button.RIGHT, 20);
+        check(w.playerX() != x0, "on marche avec le Pokédex ouvert");
+        // Plusieurs fenêtres à la fois
+        g.openWindow(new dev.orvaen.mmo.scenes.TrainerCardWindow(g));
+        g.simulateFrame();
+        eq(2, g.windows().size(), "Pokédex et carte de dresseur ouverts ensemble");
+        g.renderWindow(1280, 720);
+        g.input().type("\u001b");
+        g.simulateFrame();
+        eq(1, g.windows().size(), "Échap ferme la fenêtre de devant");
         click(g, dex.anchor("close"));
-        check(g.top() instanceof OverworldScene, "× ferme le Pokédex");
+        check(g.windows().isEmpty(), "× ferme le Pokédex");
+        g.input().type("p");
+        g.simulateFrame();
+        check(g.windowOpen("pokedex"), "raccourci P : ouvre le Pokédex");
+        g.input().type("p");
+        g.simulateFrame();
+        check(!g.windowOpen("pokedex"), "raccourci P : le referme");
     }
 
     private static void drag(Game g, java.awt.Point from, int dx, int dy) {
@@ -544,8 +563,8 @@ public final class SelfTest {
         }
         Game g = game();
         g.renderWindow(1600, 900);
-        DexScene dex = new DexScene(g);
-        g.push(dex);
+        DexWindow dex = new DexWindow(g);
+        g.openWindow(dex);
         g.simulateFrame();
         java.awt.Point close = dex.anchor("close");
         java.awt.Point title = new java.awt.Point(close.x - 300, close.y);
@@ -553,21 +572,21 @@ public final class SelfTest {
         java.awt.Point moved = dex.anchor("close");
         eq(close.x - 120, moved.x, "déplacée de 120 px vers la gauche");
         eq(close.y + 40, moved.y, "et de 40 px vers le bas");
-        check(g.top() == dex, "tirer la barre de titre ne ferme pas la fenêtre");
+        check(g.windowOpen("pokedex"), "tirer la barre de titre ne ferme pas la fenêtre");
         // coin bas-droit : on agrandit de 100 px en largeur
         java.awt.Point cell0 = dex.anchor("cell:0");
         double[] rect = Storage.uiRect("pokedex");
         check(rect != null, "place mémorisée");
         java.awt.Point corner = new java.awt.Point((int) (rect[0] + rect[2] - 3), (int) (rect[1] + rect[3] - 3));
-        drag(g, corner, -200, -100);
+        drag(g, corner, -100, -60);
         double[] after = Storage.uiRect("pokedex");
-        eq(rect[2] - 200, after[2], 0.6, "largeur réduite");
-        eq(rect[3] - 100, after[3], 0.6, "hauteur réduite");
+        eq(rect[2] - 100, after[2], 0.6, "largeur réduite");
+        eq(rect[3] - 60, after[3], 0.6, "hauteur réduite");
         eq(cell0, dex.anchor("cell:0"), "le contenu suit la fenêtre (coin haut-gauche inchangé)");
         // réouverture : même place
         click(g, dex.anchor("close"));
-        DexScene again = new DexScene(g);
-        g.push(again);
+        DexWindow again = new DexWindow(g);
+        g.openWindow(again);
         g.simulateFrame();
         eq(dex.anchor("cell:0"), again.anchor("cell:0"), "rouverte au même endroit");
     }
@@ -582,7 +601,7 @@ public final class SelfTest {
         g.push(new StartMenuScene(g, w));
         tap(g, Button.DOWN);
         tap(g, Button.A);
-        check(g.top() instanceof dev.orvaen.mmo.scenes.TrainerCardScene, "le menu ouvre la carte de dresseur");
+        check(g.windowOpen("carte-dresseur") && g.top() == w, "le menu ouvre la carte de dresseur (fenêtre)");
         check(g.save.trainerId >= 0 && g.save.trainerId < 65536, "n° ID attribué : " + g.save.trainerId);
         check(!g.save.started.isEmpty(), "date de début enregistrée");
         BufferedImage img = g.renderWindow(1280, 720);
@@ -590,8 +609,9 @@ public final class SelfTest {
         int id = g.save.trainerId;
         var reloaded = Storage.Save.load("BPRE");
         eq(id, reloaded.trainerId, "n° ID sauvegardé");
-        tap(g, Button.B);
-        check(g.top() == w, "B ferme la carte");
+        var card = (dev.orvaen.mmo.scenes.TrainerCardWindow) g.windows().get(0);
+        click(g, card.anchor("close"));
+        check(g.windows().isEmpty(), "× ferme la carte");
     }
 
     private static void storyTrigger() {
@@ -701,7 +721,7 @@ public final class SelfTest {
         BufferedImage window = g.renderWindow(1920, 1080);
         check(window.getRGB(5, 540) != 0xFF000000 && window.getRGB(1914, 540) != 0xFF000000,
                 "le monde remplit la fenêtre jusqu'aux bords (pas de bandes noires)");
-        g.push(new DexScene(g));
+        g.openWindow(new DexWindow(g));
         BufferedImage dex = g.renderFrame();
         check(dex.getRGB(5, 5) != 0xFF000000, "Pokédex dessiné");
     }

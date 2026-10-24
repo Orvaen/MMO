@@ -87,8 +87,14 @@ public final class StartMenuScene implements Scene {
 
     private void choose(int i) {
         switch (i) {
-            case 0 -> game.replace(new DexScene(game));
-            case 1 -> game.replace(new TrainerCardScene(game));
+            case 0 -> {
+                game.pop();
+                game.openWindow(new DexWindow(game));
+            }
+            case 1 -> {
+                game.pop();
+                game.openWindow(new TrainerCardWindow(game));
+            }
             case 2 -> game.replace(new CharacterCreatorScene(game, true));
             case 3 -> game.replace(new MapListScene(game, world));
             case 4 -> {

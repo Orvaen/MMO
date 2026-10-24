@@ -203,6 +203,11 @@ public final class OverworldScene implements Scene {
             game.push(new StartMenuScene(game, this));
             return;
         }
+        // Raccourcis façon PokeMMO : P = Pokédex, C = carte de dresseur (ouvrir / fermer)
+        for (char c : in.typed().toLowerCase(java.util.Locale.ROOT).toCharArray()) {
+            if (c == 'p') game.toggleWindow(new DexWindow(game));
+            if (c == 'c') game.toggleWindow(new TrainerCardWindow(game));
+        }
         if (in.pressed(Button.SELECT)) {
             game.push(new MapListScene(game, this));
             return;
